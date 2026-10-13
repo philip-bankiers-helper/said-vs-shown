@@ -11,8 +11,8 @@ the page is relative. No caption <track>: captions are burned into the video, VT
 
 The page: player + chapters, the one thing, the claim/test matrix, each story with PROVES | DOESN'T PROVE and its
 receipts, the other leads with badges, a click-to-seek transcript, "The receipt" (computed counts, the generated
-disclosure line and, on its own line, any validated episode.json "credits") and the badge legend; a "Made with
-Said vs. Shown" footer when episode.json "credit" is true.
+disclosure line and, on its own line, every validated episode.json "credit" in "credits") and the badge legend; a
+"Made with Said vs. Shown" footer when episode.json "credit" is true.
 Every fact comes from episode.json, the ledger or the timeline.
 """
 import html
@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL_NAME = 'Said vs. Shown'
@@ -212,25 +213,56 @@ DISCLOSURE_PARTS = ('AI-produced', 'AI voice', 'every claim sourced')
 DISCLOSURE_BASE = ' · '.join(DISCLOSURE_PARTS)
 UNREVIEWED = 'not yet human-reviewed'
 
-# reviewed_by is a person's name: 1-5 words of letters (any script) with . ' ’ - inside a word, at most 60
-# characters, every word capitalised (or from a script without case) except name particles ("de la", "van", "al-")
-NAME_WORD = re.compile(r"[^\W\d_](?:[^\W\d_]|[.'’-])*")
+# reviewed_by is a person's name: 1-5 words of Latin-script letters (diacritics included) with . ' ’ - inside a word,
+# at most 60 characters, every word capitalised except name particles ("de la", "van", "al-"). Letters that read as a
+# separator ("Sam ꞏ Fact-Checked ꞏ Legal") are never name letters, and neither is any letter of another script.
+SEPARATOR_LIKE = frozenset('ꞏㆍᐧǀǁǂǃːˑ')  # ꞏ ㆍ ᐧ ǀ ǁ ǂ ǃ ː ˑ
+NAME_INNER = frozenset(".-'’ʼʻ")  # period, hyphen and apostrophes (’ ʼ ʻ as in O’Neil, Kaʻiulani)
 NAME_PARTICLES = {'de', 'da', 'das', 'del', 'della', 'der', 'den', 'des', 'di', 'do', 'dos', 'du', 'la', 'le', 'van',
                   'von', 'zu', 'ter', 'ten', 'bin', 'ibn', 'al', 'el', 'y', 'e', 'af', 'av'}
 PARTICLE_PREFIX = re.compile(r"(?:al|el|ad|ar|as|at|d|l|da|de|di|du)['’-][^\W\d_].*")
 # credits: "<label>: <value>", the label from this list only, the value one plain phrase (no separators, no markup)
 CREDIT_LABELS = ('music', 'sfx', 'footage', 'images', 'translation', 'data')
 CREDIT = re.compile(r'(%s) ?: ?([\w .,\'’&()/+:#@%%!?"“”–-]{1,80})' % '|'.join(CREDIT_LABELS), re.I)
+CLOSE_CREDITS = 3  # the close card's receipt prints at most this many credits (all of them: the page, SOURCES.md)
+CLOSE_CREDIT_CHARS = 64  # and each in at most this many characters, so the worst case (3 stories, a 60-character
+                         # reviewer name, 3 credits) ends at y = 1040 of 1080 (measured in Chrome with IBM Plex Mono)
+# a credit that says a person reviewed, checked, approved or verified something (P4): warned, still printed
+REVIEW_CLAIM = re.compile(r"(?<![^\W\d_])(?:re-?view|peer[- ]?review|fact[- ]?check|approv|verif|vett|validat|"
+                          r"audit|proof-?read|sign(?:ed)?[- ]?off|(?:double[- ]|cross[- ])?checked|confirm|endors)",
+                          re.I)
+BOOL_WORDS = {'true': True, 'yes': True, 'on': True, '1': True, 'false': False, 'no': False, 'off': False, '0': False}
+
+
+def latin_letter(ch):
+    """A letter of the Latin script (any case, with or without diacritics), never one that reads as a separator."""
+    return ch.isalpha() and ch not in SEPARATOR_LIKE and unicodedata.name(ch, '').startswith('LATIN ')
+
+
+def name_word(w):
+    """One word of a name: a Latin letter, then Latin letters, . - ' ’ ʼ ʻ, or combining diacritics after a letter."""
+    if not w or not latin_letter(w[0]):
+        return False
+    for prev, ch in zip(w, w[1:]):
+        if latin_letter(ch) or ch in NAME_INNER:
+            continue
+        if '̀' <= ch <= 'ͯ' and ch != '͏' and (latin_letter(prev) or '̀' <= prev <= 'ͯ'):
+            continue
+        return False
+    return True
 
 
 def is_name(s):
-    """True for what reads as a person's name ("Jane Doe", "Dr. Lee", "Mary-Ann O'Neil", "Ana de la Cruz")."""
+    """True for what reads as a person's name ("Jane Doe", "Dr. Lee", "Mary-Ann O'Neil", "Ana de la Cruz",
+    "José Núñez"): Latin-script letters only (NFC; diacritics welcome), spaces, hyphen, apostrophe and period. A name
+    in another script is written in its Latin form; a letter that looks like a separator (ꞏ ㆍ ᐧ ǀ ǃ ː ˑ) is refused."""
+    s = unicodedata.normalize('NFC', s)
     words = s.split(' ')
-    if not 1 <= len(words) <= 5 or len(s) > 60 or not all(NAME_WORD.fullmatch(w) for w in words):
+    if not 1 <= len(words) <= 5 or len(s) > 60 or not all(name_word(w) for w in words):
         return False
 
     def capital(w):
-        return w[0].isupper() or not w[0].islower()  # caseless scripts have neither case
+        return w[0].isupper() or not w[0].islower()  # a caseless Latin letter (ʔ) counts as capital
 
     def particle(w):
         return w.lower() in NAME_PARTICLES or bool(PARTICLE_PREFIX.fullmatch(w))
@@ -243,44 +275,97 @@ def _say(warn_to, msg):
 
 
 def reviewer_of(E, warn_to=None):
-    """The name episode.json "reviewed_by" records (stage 10), or None: unset, or not a name (is_name), which is
-    named in a warning on warn_to and counts as not reviewed."""
+    """The name episode.json "reviewed_by" records (stage 10), NFC-normalised, or None: unset, or not a name (is_name),
+    which is named in a warning on warn_to and counts as not reviewed."""
     raw = E.get('reviewed_by')
-    name = ' '.join(str(raw or '').split())
+    name = unicodedata.normalize('NFC', ' '.join(str(raw or '').split()))
     if not name:
         return None
     if not is_name(name):
-        _say(warn_to, f'reviewed_by {raw!r} ignored: it must be the reviewer\'s name (capitalised words of letters and '
-                      f'. \' - only, at most 5 words and 60 characters); the disclosure says "{UNREVIEWED}"')
+        _say(warn_to, f'reviewed_by {raw!r} ignored: it must be the reviewer\'s name (capitalised words of Latin letters, '
+                      f'diacritics allowed, and . \' - only, at most 5 words and 60 characters; a name in another script '
+                      f'in its Latin form); the disclosure says "{UNREVIEWED}"')
         return None
     return name
 
 
+def _credit_field(E):
+    """episode.json "credit" read as (footer switch or None when unset, credit texts it holds, warning or None).
+    "credit" is the true/false switch for the "Made with" footer; "credits" holds the credits. A "credit" holding
+    text or a list was meant for "credits": the texts are returned (credits_of reads them) and the footer stays on."""
+    raw = E.get('credit')
+    if raw is None or isinstance(raw, bool):
+        return raw, [], None
+    if isinstance(raw, (int, float)) and raw in (0, 1):
+        return bool(raw), [], f'episode.json "credit" {raw!r} read as {str(bool(raw)).lower()}: write true or false'
+    if isinstance(raw, str) and raw.strip().lower() in BOOL_WORDS:
+        on = BOOL_WORDS[raw.strip().lower()]
+        return on, [], f'episode.json "credit" {raw!r} read as {str(on).lower()}: write true or false, without quotes'
+    items = [raw] if isinstance(raw, str) else list(raw) if isinstance(raw, list) else [raw]
+    return True, items, (f'episode.json "credit" HOLDS {raw!r}, BUT "credit" IS ONLY THE true/false SWITCH for the '
+                         f'"Made with {TOOL_NAME}" footer. Read as "credits" (rename the field to "credits"); the '
+                         f'footer stays on.')
+
+
+def credit_footer(E, default, warn_to=None):
+    """Whether the "Made with Said vs. Shown" footer prints: episode.json "credit" when it is true or false, default
+    when it is unset. A "credit" written as "false"/"no"/0 (or "true"/"yes"/1) is read as that boolean with a warning;
+    one holding credits text keeps the footer on (credits_of warns and moves the text to "credits")."""
+    on, items, msg = _credit_field(E)
+    if msg and not items:
+        _say(warn_to, msg)
+    return default if on is None else on
+
+
+def _legacy_segments(E):
+    """The segments of the legacy episode.json "disclosure" field, whitespace-normalised."""
+    return [seg for seg in (' '.join(x.split()) for x in str(E.get('disclosure') or '').split('·')) if seg]
+
+
 def credits_of(E, warn_to=sys.stderr):
-    """episode.json "credits" (a list of "<label>: <value>", label one of CREDIT_LABELS, any case) as normalised
-    strings ("music: CC0 loops by Kevin MacLeod"). Anything else is dropped with a warning on warn_to (None: silent).
-    Credits print on their own "Credits" line (credits_line), never in the disclosure line."""
+    """The episode's third-party credits as normalised "<label>: <value>" strings ("music: CC0 loops by Kevin
+    MacLeod"), label one of CREDIT_LABELS (any case): episode.json "credits", then credits text written in "credit" by
+    mistake (that field is the footer switch; warned loudly and read as credits), then legacy "disclosure" segments
+    that are allowlisted credits ("music: …"), migrated with a warning. Duplicates (any case) are dropped. Anything
+    else is dropped with a warning on warn_to (None: silent); a separator-like letter (ꞏ ǀ ː …) in the value counts as
+    a separator. A credit that mentions a review, fact-check, approval or verification is kept, with a warning: the
+    line is labelled "Credits", and only "reviewed_by" records a review. Credits print on their own "Credits" line
+    (credits_line), never in the disclosure line; the close card prints at most CLOSE_CREDITS of them."""
     raw = E.get('credits')
-    if raw in (None, '', []):
-        return []
-    items = [raw] if isinstance(raw, str) else raw if isinstance(raw, list) else None
+    items = [] if raw in (None, '', []) else [raw] if isinstance(raw, str) else list(raw) if isinstance(raw, list) else None
     if items is None:
         _say(warn_to, f'credits {raw!r} ignored: write a list of "<label>: <value>" ({", ".join(CREDIT_LABELS)})')
-        return []
-    out = []
-    for item in items:
+        items = []
+    _, from_credit, msg = _credit_field(E)
+    if from_credit:
+        _say(warn_to, msg)
+    legacy = [seg for seg in _legacy_segments(E) if CREDIT.fullmatch(seg)]
+    if legacy:
+        _say(warn_to, f'episode.json "disclosure" holds {" · ".join(legacy)!r}: moved to the Credits line. The disclosure '
+                      f'line is generated; write credits in "credits", e.g. ["music: CC0 loops by <artist>"].')
+    out, seen = [], set()
+    for item in items + from_credit + legacy:
         s = ' '.join(item.split()) if isinstance(item, str) else ''
         m = CREDIT.fullmatch(s) if s else None
-        if not m:
+        if not m or any(ch in SEPARATOR_LIKE for ch in s):
             _say(warn_to, f'credit {item!r} dropped: write "<label>: <value>" with a label from {", ".join(CREDIT_LABELS)} '
                           f'and a plain value (at most 80 characters, no · | ; or markup)')
             continue
-        out.append(f'{m.group(1).lower()}: {m.group(2).strip()}')
+        credit = f'{m.group(1).lower()}: {m.group(2).strip()}'
+        if credit.lower() in seen:
+            continue
+        seen.add(credit.lower())
+        if REVIEW_CLAIM.search(m.group(2)):
+            _say(warn_to, f'credit {credit!r} mentions a review, fact-check, approval or verification. "Credits" credit '
+                          f'third-party media and data; they never record that a person reviewed the episode (only '
+                          f'"reviewed_by" does, stage 10). It still prints, on the line labelled "Credits".')
+        out.append(credit)
     return out
 
 
 def credits_line(credits):
-    """The "Credits" line for the close card and the page, or '' when there are none."""
+    """The "Credits" line for the page, or '' when there are none (the close card builds the same line from at most
+    CLOSE_CREDITS of them, then "+N more")."""
     return ('Credits: ' + ' · '.join(credits)) if credits else ''
 
 
@@ -288,12 +373,12 @@ def disclosure_parts(E, warn_to=None):
     """The disclosure's segments: the fixed parts (AI-produced · AI voice · every claim sourced), then the one
     generated review segment, "reviewed by <reviewed_by>" when reviewer_of(E) has a name, else "not yet
     human-reviewed". Nothing from episode.json "disclosure" ever enters it: when that legacy field holds anything
-    beyond these segments it is ignored, with a warning that points to "credits"."""
+    beyond these segments it is ignored, with a warning that points to "credits"; a segment that is an allowlisted
+    credit ("music: …") moves to the Credits line instead (credits_of, which warns about it)."""
     reviewer = reviewer_of(E, warn_to)
     generated = f'reviewed by {reviewer}' if reviewer else UNREVIEWED
     known = {x.lower() for x in DISCLOSURE_PARTS} | {UNREVIEWED, generated.lower()}
-    extra = [seg for seg in (' '.join(x.split()) for x in str(E.get('disclosure') or '').split('·'))
-             if seg and seg.lower() not in known]
+    extra = [seg for seg in _legacy_segments(E) if seg.lower() not in known and not CREDIT.fullmatch(seg)]
     if extra:
         _say(warn_to, f'episode.json "disclosure" text {" · ".join(extra)!r} ignored: the disclosure line is generated '
                       f'("{DISCLOSURE_BASE} · reviewed by <reviewed_by>"). Put third-party credits in "credits", e.g. '
@@ -403,7 +488,7 @@ def build(ep_dir, out, video_name=None, repo_url=None, install=None):
     <span class="mono">Made with <a href="{esc(repo_url)}">{TOOL_NAME}</a></span>
     <a class="url" href="{esc(repo_url)}">{esc(re.sub(r"^https?://", "", repo_url))}</a>
     <code class="install">{esc(install)}</code>
-  </footer>''' if E.get('credit') else '')
+  </footer>''' if credit_footer(E, False, sys.stderr) else '')
     strip = ''.join(f'<span>{x}</span>' for x in (
         f'<b>{esc(show)}</b>' + (f' · {esc(E["edition"])}' if E.get('edition') else ''),
         esc(E.get('window', '')), f'{duration} video', f'sources captured {esc(captured)}' if captured else '') if x)

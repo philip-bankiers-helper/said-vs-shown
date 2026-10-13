@@ -31,7 +31,8 @@ import sys
 ENGINE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(ENGINE)
 sys.path.insert(0, ENGINE)
-from companion import credits_of, disclosure_of, reviewer_of  # noqa: E402  (one disclosure rule for the video and the page)
+from companion import (CLOSE_CREDIT_CHARS, CLOSE_CREDITS, credit_footer, credits_of, disclosure_of,  # noqa: E402
+                       reviewer_of)  # one disclosure and credits rule for the video and the page
 TEMPLATES = os.path.join(SKILL, 'templates', 'scenes')
 KINDS = ('squeeze', 'payoff', 'one-thing', 'close')
 DEFAULT_ACCENT = '#f2c14e'
@@ -183,6 +184,14 @@ def display_url(u):
     return u.rstrip('/')
 
 
+def short_credit(c, limit=CLOSE_CREDIT_CHARS):
+    """(credit as the close card prints it, shortened?): at most `limit` characters, cut at a word with "…"."""
+    if len(c) <= limit:
+        return c, False
+    cut = c[:limit - 1].rsplit(' ', 1)[0].rstrip(',.;:')
+    return (cut if len(cut) > c.index(':') + 1 else c[:limit - 1]) + '…', True
+
+
 def short_title(t, limit=36):
     t = re.split(r'\s*[:;]\s+|\s+[—–]\s+', t.strip())[0]
     if len(t) <= limit:
@@ -314,6 +323,10 @@ class Episode:
 
     def credits(self):
         return self._warnings(credits_of)
+
+    def footer(self):
+        """The receipt's "Made with" footer: episode.json "credit" (true when unset, as new_episode.py writes it)."""
+        return self._warnings(lambda E, warn_to: credit_footer(E, True, warn_to))
 
 
 # ── scene builders ───────────────────────────────────────────────────────────────────────────────
@@ -558,6 +571,18 @@ def build_close(ep, W, bt):
     i = W.find(['companion'], after=cta_a)
     cta_b = bt.add('cta b', (W.w[i]['s'] - 0.02) if i is not None else cta_a + 1.7, '"companion"' if i is not None else 'fallback')
     key = bt.add('badge key', cta_b + 0.4, 'cta b + 0.4')
+    credits = ep.credits()
+    if len(credits) > CLOSE_CREDITS:  # the receipt has room for CLOSE_CREDITS; the page and SOURCES.md list all
+        ep.notes.append(f'close: {len(credits)} credits; the receipt prints the first {CLOSE_CREDITS} and '
+                        f'"+{len(credits) - CLOSE_CREDITS} more"; all {len(credits)} are on the companion page and in '
+                        f'SOURCES.md (put the ones the video must show first in "credits")')
+    card_credits = []
+    for c in credits[:CLOSE_CREDITS]:
+        short, cut = short_credit(c)
+        card_credits.append(short)
+        if cut:
+            ep.notes.append(f'close: credit {c!r} prints as {short!r} on the receipt (at most {CLOSE_CREDIT_CHARS} '
+                            f'characters each); the companion page and SOURCES.md print it in full')
     return {
         'meta': ep.meta(),
         'eyebrow': E.get('title') or '',
@@ -571,8 +596,9 @@ def build_close(ep, W, bt):
             'stories': stories,
             'counts': counts,
             'disclosure': ep.disclosure(),
-            'credits': ep.credits(),
-            'credit': bool(E.get('credit', True)),
+            'credits': card_credits,
+            'credits_more': max(0, len(credits) - CLOSE_CREDITS),
+            'credit': ep.footer(),
         },
         'beats': {'title': title, 'receipt': rc, 'cta_a': cta_a, 'cta_b': cta_b, 'key': key},
     }

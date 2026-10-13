@@ -1,4 +1,5 @@
-"""The disclosure rule and credits (companion / fill_scenes / close template / new_episode / deliver), the one-thing question split,
+"""The disclosure rule, reviewed_by names and credits (companion / fill_scenes / close template / new_episode / deliver), the
+"credit" footer switch, the one-thing question split,
 deliver.py's transcript.md and the paths new_episode.py prints. Offline; standard library only."""
 import io
 import os
@@ -73,6 +74,8 @@ class DisclosureTests(unittest.TestCase):
     def test_no_free_text_reaches_the_line(self):
         self.assertEqual(len(set(SMUGGLED)), 85)
         for phrase in SMUGGLED:
+            if companion.CREDIT.fullmatch(phrase):  # an allowlisted credit moves to the Credits line (test below)
+                continue
             for disclosure in (phrase, 'AI-produced · AI voice · every claim sourced · ' + phrase, phrase + ' · AI voice',
                                'AI-produced · ' + phrase + ' · music: CC0', 'AI-produced • ' + phrase + ' | music: CC0',
                                UNREVIEWED + ' · ' + phrase):
@@ -98,18 +101,135 @@ class DisclosureTests(unittest.TestCase):
 
     def test_reviewed_by_must_be_a_name(self):
         for name in ('Jane Doe', 'Dr. Lee', "Mary-Ann O'Neil", 'José Núñez', 'J. R. R. Tolkien', 'Ana de la Cruz',
-                     'Ludwig van Beethoven', 'Omar al-Hassan', '李小龙', 'Philip Bankier'):
+                     'Ludwig van Beethoven', 'Omar al-Hassan', 'Philip Bankier', 'Zoë Ångström', 'Łukasz Żółć',
+                     'Nguyễn Văn An', 'Søren Kierkegaard', 'Kaʻiulani Cleghorn'):
             with self.subTest(name=name):
                 self.assertEqual(companion.disclosure_of({'reviewed_by': name}, warn_to=None),
                                  'AI-produced · AI voice · every claim sourced · reviewed by ' + name)
         for bad in ('Sam · fact-checked by Legal · approved by the board', 'Sam, fact-checked by Legal and approved by the board',
                     'Sam fact checked by Legal', 'Sam and the legal desk', 'Sam (Legal)', 'Sam | Legal', 'R2D2',
-                    'the newsroom', 'Sam\nfact-checked', 'A' * 61, 'One Two Three Four Five Six', 'Sam <b>Legal</b>'):
+                    'the newsroom', 'Sam\nfact-checked', 'A' * 61, 'One Two Three Four Five Six', 'Sam <b>Legal</b>',
+                    '李小龙'):
             with self.subTest(bad=bad):
                 err = io.StringIO()
                 self.assertEqual(companion.disclosure_of({'reviewed_by': bad}, warn_to=err), UNREVIEWED)
                 self.assertIn('reviewed_by', err.getvalue())
                 self.assertIsNone(companion.reviewer_of({'reviewed_by': bad}))
+
+    def test_reviewed_by_latin_letters_only(self):
+        """Letters that read as a separator (U+A78F ꞏ, U+318D ㆍ, U+1427 ᐧ, U+01C0 ǀ, U+01C3 ǃ, U+02D0 ː, U+02D1 ˑ, and
+        ǁ ǂ) and letters of any other script are refused: "not yet human-reviewed" plus a warning. They used to pass,
+        so "Sam ꞏ Fact-Checked ꞏ Legal-Approved" printed as "reviewed by Sam ꞏ Fact-Checked ꞏ Legal-Approved"."""
+        for ch in '\ua78f\u318d\u1427\u01c0\u01c3\u02d0\u02d1\u01c1\u01c2':
+            for bad in ('Sam %s Fact-Checked %s Legal-Approved' % (ch, ch), 'Sam%sLegal' % ch, 'Sam Lee%s' % ch):
+                with self.subTest(ch='U+%04X' % ord(ch), bad=bad):
+                    self.assertFalse(companion.is_name(bad))
+                    err = io.StringIO()
+                    self.assertEqual(companion.disclosure_of({'reviewed_by': bad}, warn_to=err), UNREVIEWED)
+                    self.assertIn('reviewed_by', err.getvalue())
+        for bad in ('李小龙', 'محمد علي', 'Иван Петров', 'Σωκράτης', 'S\u0430m Lee',  # Cyrillic a in a Latin name
+                    'ＳＡＭ Lee', 'Sam \u02bb\u02bbLee', 'Sam\u034f Lee'):
+            with self.subTest(bad=bad):
+                self.assertIsNone(companion.reviewer_of({'reviewed_by': bad}))
+        # diacritics in either Unicode form; the line carries the composed (NFC) name
+        nfd = 'Jose\u0301 Nu\u0301n\u0303ez'
+        self.assertEqual(companion.reviewer_of({'reviewed_by': nfd}), 'José Núñez')
+        self.assertEqual(companion.disclosure_of({'reviewed_by': nfd}, warn_to=None),
+                         'AI-produced · AI voice · every claim sourced · reviewed by José Núñez')
+
+    def test_legacy_disclosure_credit_is_migrated(self):
+        E = {'disclosure': 'AI-produced · AI voice · Music: CC0 loops by Kevin MacLeod · fact-checked by Legal · data: Epoch AI',
+             'credits': ['data: Epoch AI']}
+        err = io.StringIO()
+        self.assertEqual(companion.disclosure_of(E, warn_to=err), UNREVIEWED)
+        self.assertIn("'fact-checked by Legal' ignored", err.getvalue())
+        self.assertNotIn('Kevin MacLeod', err.getvalue())  # not "ignored": it moves to the Credits line
+        err = io.StringIO()
+        self.assertEqual(companion.credits_of(E, warn_to=err),
+                         ['data: Epoch AI', 'music: CC0 loops by Kevin MacLeod'])  # migrated once, no duplicate
+        self.assertIn('moved to the Credits line', err.getvalue())
+        self.assertIn('Music: CC0 loops by Kevin MacLeod', err.getvalue())
+
+    def test_credit_switch_holding_credits_is_read_as_credits(self):
+        """"credit" is the footer switch; credits text written there by mistake used to vanish (only the footer showed).
+        It is read as "credits" with a loud warning, and the footer stays on."""
+        for raw, want in ((['music: CC0 loops by Kevin MacLeod', 'images: NASA'], ['music: CC0 loops by Kevin MacLeod', 'images: NASA']),
+                          ('music: CC0 loops by Kevin MacLeod', ['music: CC0 loops by Kevin MacLeod'])):
+            with self.subTest(raw=raw):
+                E = {'credit': raw, 'credits': ['data: Epoch AI']}
+                err = io.StringIO()
+                self.assertEqual(companion.credits_of(E, warn_to=err), ['data: Epoch AI'] + want)
+                self.assertIn('"credit" HOLDS', err.getvalue())
+                self.assertIn('rename the field to "credits"', err.getvalue())
+                err = io.StringIO()
+                self.assertTrue(companion.credit_footer(E, False, err))
+                self.assertEqual(err.getvalue(), '')  # warned once, by credits_of
+        for raw, want in ((True, True), (False, False), (None, 'default'), ('false', False), ('No', False), (0, False),
+                          ('true', True), (1, True)):
+            with self.subTest(raw=raw):
+                err = io.StringIO()
+                self.assertEqual(companion.credit_footer({'credit': raw}, 'default', err), want)
+                self.assertEqual(bool(err.getvalue()), not isinstance(raw, (bool, type(None))))
+                self.assertEqual(companion.credits_of({'credit': raw}, warn_to=None), [])
+        with tempfile.TemporaryDirectory() as d:  # the close card and the page
+            mini_episode(d, credit=['music: CC0 loops'])
+            ep = fill_scenes.Episode(d)
+            cfg = fill_scenes.build_close(ep, fill_scenes.Words(None), fill_scenes.Beats('close'))
+            self.assertEqual((cfg['receipt']['credits'], cfg['receipt']['credit']), (['music: CC0 loops'], True))
+            self.assertTrue(any('"credit" HOLDS' in n for n in ep.notes), ep.notes)
+            out = os.path.join(d, 'page')
+            r = run([sys.executable, os.path.join(ENGINE, 'companion.py'), d, out])
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn('"credit" HOLDS', r.stderr)
+            with open(os.path.join(out, 'index.html'), encoding='utf-8') as f:
+                page = f.read()
+            self.assertEqual(re.findall(r'<p class="credits">([^<]*)</p>', page), ['Credits: music: CC0 loops'])
+            self.assertIn('<footer class="credit">', page)
+
+    def test_credit_that_claims_a_review_warns_and_still_prints(self):
+        claims = ['data: fact-checked by Reuters', 'translation: verified by Dr. Lee', 'footage: approved by Legal',
+                  'data: reviewed by Sam', 'images: peer-reviewed set', 'data: double-checked by our desk',
+                  'music: vetted by Legal', 'data: Census, confirmed by the bureau', 'sfx: proofread by Sam']
+        for c in claims:
+            with self.subTest(credit=c):
+                err = io.StringIO()
+                self.assertEqual(companion.credits_of({'credits': [c]}, warn_to=err), [c])
+                self.assertIn('mentions a review, fact-check, approval or verification', err.getvalue())
+        for c in ('music: CC0 loops by Kevin MacLeod', 'images: Wikimedia Commons (CC BY-SA)', 'footage: NASA preview reel',
+                  'data: Epoch AI, CC-BY 4.0', 'translation: Ana de la Cruz'):
+            with self.subTest(credit=c):
+                err = io.StringIO()
+                self.assertEqual(companion.credits_of({'credits': [c]}, warn_to=err), [c])
+                self.assertEqual(err.getvalue(), '')
+        err = io.StringIO()  # a separator-like letter in a value counts as a separator
+        self.assertEqual(companion.credits_of({'credits': ['data: Census \ua78f fact-checked by Legal']}, warn_to=err), [])
+        self.assertIn('dropped', err.getvalue())
+
+    def test_close_card_prints_at_most_three_credits(self):
+        """The receipt never runs off the frame: at most 3 credits of at most 64 characters, then "+N more"; the page
+        prints them all (and so does SOURCES.md, from the same credits_of)."""
+        long = 'images: Wikimedia Commons contributors, CC BY-SA 4.0, edited and colour graded'
+        credits = ['music: CC0 loops by Kevin MacLeod', long, 'sfx: freesound.org/s/123', 'data: Epoch AI', 'footage: NASA']
+        with tempfile.TemporaryDirectory() as d:
+            mini_episode(d, credits=credits)
+            ep = fill_scenes.Episode(d)
+            R = fill_scenes.build_close(ep, fill_scenes.Words(None), fill_scenes.Beats('close'))['receipt']
+            self.assertEqual(R['credits'], ['music: CC0 loops by Kevin MacLeod',
+                                            'images: Wikimedia Commons contributors, CC BY-SA 4.0, edited…',
+                                            'sfx: freesound.org/s/123'])
+            self.assertEqual(R['credits_more'], 2)
+            self.assertTrue(all(len(c) <= companion.CLOSE_CREDIT_CHARS for c in R['credits']))
+            self.assertTrue(any(n.startswith('close: 5 credits') and 'SOURCES.md' in n for n in ep.notes), ep.notes)
+            self.assertTrue(any('prints as' in n and 'in full' in n for n in ep.notes), ep.notes)
+            out = os.path.join(d, 'page')
+            self.assertEqual(run([sys.executable, os.path.join(ENGINE, 'companion.py'), d, out]).returncode, 0)
+            with open(os.path.join(out, 'index.html'), encoding='utf-8') as f:
+                self.assertEqual(re.findall(r'<p class="credits">([^<]*)</p>', f.read()),
+                                 ['Credits: ' + ' · '.join(credits)])
+        with tempfile.TemporaryDirectory() as d:  # three or fewer: all of them, nothing more
+            mini_episode(d, credits=credits[:3])
+            R = fill_scenes.build_close(fill_scenes.Episode(d), fill_scenes.Words(None), fill_scenes.Beats('close'))['receipt']
+            self.assertEqual((len(R['credits']), R['credits_more']), (3, 0))
 
     def test_credits_allowlist(self):
         err = io.StringIO()
@@ -142,7 +262,9 @@ class DisclosureTests(unittest.TestCase):
                             ep.notes)
             cfg = fill_scenes.build_close(ep, fill_scenes.Words(None), fill_scenes.Beats('close'))
             self.assertEqual(cfg['receipt']['disclosure'], UNREVIEWED)
-            self.assertEqual(cfg['receipt']['credits'], ['music: CC0 loops'])
+            # "music: CC0" from the legacy disclosure is migrated to the credits, with a warning
+            self.assertEqual(cfg['receipt']['credits'], ['music: CC0 loops', 'music: CC0'])
+            self.assertTrue(any(n.startswith('warning:') and 'moved to the Credits line' in n for n in ep.notes), ep.notes)
             self.assertTrue(any(n.startswith('warning:') and "'approved by Legal'" in n for n in ep.notes), ep.notes)
             ep.E['reviewed_by'] = 'Jane Doe'
             self.assertEqual(ep.disclosure(), REVIEWED)
@@ -151,7 +273,9 @@ class DisclosureTests(unittest.TestCase):
         with open(os.path.join(ENGINE, '..', 'templates', 'scenes', 'close.html'), encoding='utf-8') as f:
             src = f.read()
         self.assertIn('credits: [],', src)
+        self.assertIn('credits_more: 0,', src)
         self.assertRegex(src, r'line\("cl-credits", "Credits: " \+ R\.credits\.join')
+        self.assertRegex(src, r'R\.credits_more > 0 \? "\\u00a0· \+" \+ R\.credits_more \+ " more"')
         self.assertLess(src.index('line("cl-disc"'), src.index('line("cl-credits"'))
 
     def test_companion_page_generates_the_line_and_prints_credits_apart(self):
@@ -166,7 +290,7 @@ class DisclosureTests(unittest.TestCase):
                 page = f.read()
             self.assertEqual(re.findall(r'<p class="disc">([^<]*)</p>', page), [UNREVIEWED])
             self.assertEqual(re.findall(r'<p class="credits">([^<]*)</p>', page),
-                             ['Credits: music: CC0 loops by Kevin MacLeod'])
+                             ['Credits: music: CC0 loops by Kevin MacLeod · music: CC0'])  # the last one migrated
             for claim in ("QA'd", 'looked over', "OK&#x27;d", 'fact-checked'):
                 self.assertNotIn(claim, page)
             self.assertIn('"credits"', r.stderr)
