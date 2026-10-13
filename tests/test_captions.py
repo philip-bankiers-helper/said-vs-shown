@@ -1,10 +1,12 @@
+import itertools
 import os
 import random
 import sys
 import tempfile
+import time
 import unittest
 
-from helpers import ENGINE, example, load, run, save, worked_example
+from helpers import ENGINE, ROOT, example, load, run, save, worked_example
 
 import align
 import captions
@@ -264,6 +266,68 @@ class ShortCueMergeTests(unittest.TestCase):
         self.assertLessEqual(cues[0]['end'], 0.28)
 
 
+class ShortCueLengthenTests(unittest.TestCase):
+    """A one-word scene ("Five." spoken 2.3-2.6 s between cuts at 1.94 and next line - 0.36): its cue cannot merge
+    across either cut, so it starts earlier, back to its own scene cut and at most LAST_LEAD before its word, until it
+    lasts 0.5 s; a scene too short for that keeps the cue at the whole scene. It used to stay at 0.29 s (gap 0.3)."""
+
+    def build(self, gap):
+        nxt = 2.6 + gap
+        cuts = [1.94, round(nxt - 0.36, 2)]
+        words = [w('That', 0.35, 0.7), w('ships', 0.7, 1.1), w('today.', 1.1, 1.6), w('Five.', 2.3, 2.6),
+                 w('Next', nxt, nxt + 0.3), w('scene', nxt + 0.3, nxt + 0.6), w('here.', nxt + 0.6, nxt + 1.0)]
+        cues = captions.build(words, cuts, 42)
+        for a, b in zip(cues, cues[1:]):
+            self.assertLessEqual(a['end'], b['start'] + 1e-9, (a, b))
+        for c in cues:
+            for x in cuts:
+                self.assertFalse(c['start'] < x - 1e-6 < c['end'] - 2e-6, (c, x))
+        return next(c for c in cues if c['text'] == 'Five.'), cuts
+
+    def test_starts_earlier_to_reach_half_a_second(self):
+        for gap in (0.3, 0.5):
+            five, cuts = self.build(gap)
+            self.assertGreaterEqual(round(five['end'] - five['start'], 3), captions.MIN_PART, (gap, five))
+            self.assertGreaterEqual(five['start'], cuts[0])  # never before its own scene cut
+            self.assertGreaterEqual(five['start'], 2.3 - captions.LAST_LEAD - 1e-9)
+            self.assertLessEqual(five['end'], cuts[1])
+            self.assertEqual(five['cps'], round(5 / (five['end'] - five['start']), 1))
+
+    def test_a_scene_too_short_keeps_what_it_gives(self):
+        five, cuts = self.build(0.1)  # the scene lasts 0.4 s: the cue is the whole scene
+        self.assertEqual((five['start'], five['end']), (cuts[0], cuts[1]))
+
+    def test_no_change_without_short_cues(self):
+        lengthen = captions.lengthen
+        for s, tr, tl in (example(), worked_example('whisper')):
+            words, _ = align.align(s, tr, tl)
+            cues = captions.build(words, tl['cuts'], 42, s['display'])
+            try:
+                captions.lengthen = lambda cues, *a, **k: cues
+                self.assertEqual(captions.build(words, tl['cuts'], 42, s['display']), cues)
+            finally:
+                captions.lengthen = lengthen
+
+    def test_docs_say_where_the_scene_allows(self):
+        self.assertIn('≥0.5 s where the scene allows', captions.__doc__)
+        with open(os.path.join(ROOT, 'skills', 'said-vs-shown', 'references', 'editorial.md'), encoding='utf-8') as f:
+            self.assertIn('≥0.5 s where the scene allows', f.read())
+
+
+class EqualStartTests(unittest.TestCase):
+    """Two cues whose first words open just after one cut both clamp to that cut; the earlier rule gave the first one
+    zero length. Cue starts now rise by at least 1 ms."""
+
+    def test_cues_opening_on_one_cut(self):
+        cues = [{'text': 'Twenty-four was the year;', 'start': 5.01, 'end': 5.02},
+                {'text': 'five hundred and twenty-two', 'start': 5.02, 'end': 5.03},
+                {'text': 'people said so.', 'start': 5.6, 'end': 6.0}]
+        captions.time_cues(cues, [5.0])
+        self.assertEqual([c['start'] for c in cues][:2], [5.0, 5.001])
+        for c in cues:
+            self.assertGreater(c['end'], c['start'], c)
+
+
 class JitterRegressionTests(unittest.TestCase):
     """The round-3 verifier's jitter model (each ASR word's start + N(0, sigma), its length + N(0, sigma / 2)), seeded:
     the caption gate holds on the worked example's Whisper transcript at sigma 0.05 and 0.1 s and on its Parakeet
@@ -329,6 +393,39 @@ class ChunkingTests(unittest.TestCase):
         self.assertGreater(len(cues), 1)
         self.assertTrue(all(len(c['text']) <= 42 for c in cues))
         self.assertEqual(' '.join(c['text'] for c in cues), text)
+
+    def test_balanced_is_the_exhaustive_optimum(self):
+        """The dynamic-programming split gives exactly what trying every split gave (the earlier rule): the shortest
+        longest part + 8 per stranded function word, earliest cuts on a tie."""
+        def exhaustive(ws, n):
+            best = None
+            for cut in itertools.combinations(range(1, len(ws)), n - 1):
+                parts = [ws[i:j] for i, j in zip((0,) + cut, cut + (len(ws),))]
+                m = max(len(captions.text(p)) for p in parts) + 8 * sum(captions.stranded(p) for p in parts[:-1])
+                if best is None or m < best[0]:
+                    best = (m, parts)
+            return best[1]
+        rnd = random.Random(5)
+        vocab = ['the', 'a', 'of', 'to', 'and', 'at', 'it', 'model', 'proof', 'Lean,', 'benchmark', 'x', 'GPT-6', '93%']
+        for trial in range(250):
+            ws = [w(rnd.choice(vocab) if rnd.random() < 0.7 else 'w' * rnd.randint(1, 12), 0, 0)
+                  for _ in range(rnd.randint(1, 10))]
+            for n in range(1, len(ws) + 1):
+                self.assertEqual(captions.balanced(ws, n), exhaustive(ws, n), (trial, n, captions.text(ws)))
+
+    def test_long_unpunctuated_clause_is_fast(self):
+        """45 words took 90 s and 50 more than 200 s (every split tried); voice.py looked hung."""
+        vocab = ('the model passed a test that anyone can check because the proof is written in a formal language '
+                 'and the checker accepts it').split()
+        for n in (45, 60):
+            text = ' '.join(vocab[i % len(vocab)] for i in range(n)) + '.'
+            ws = even(text, 0.35, 0.35 + (len(text) + 1) / 15.0)
+            t0 = time.perf_counter()
+            cues = captions.build(ws, [], 42)
+            self.assertLess(time.perf_counter() - t0, 1.0, n)
+            self.assertEqual(' '.join(c['text'] for c in cues), text)
+            self.assertTrue(all(len(c['text']) <= 42 for c in cues))
+            self.assertEqual(gate_fails(cues), [])
 
     def test_single_overlong_word_does_not_crash(self):
         cues = captions.build([w('x' * 50, 0.0, 1.0)], [], 42)

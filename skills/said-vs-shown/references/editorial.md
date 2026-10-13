@@ -33,5 +33,5 @@ Close with:
 ## Pace and captions
 
 - **Pace:** 145–185 wpm (target ~160), one idea per sentence. Contractions are welcome; hype words are not.
-- **Captions:** phrase-level, ≤42 characters, chunked for ≤19 cps (the gate is 21: the margin absorbs ASR timing jitter), never across a scene cut, never shorter than 0.5 s.
+- **Captions:** phrase-level, ≤42 characters, chunked for ≤19 cps (the gate is 21: the margin absorbs ASR timing jitter), never across a scene cut, ≥0.5 s where the scene allows (a shorter cue merges with a neighbour, or starts earlier, back to its own scene cut; a one-word scene with a short gap after it can leave a cue under 0.5 s).
 - **Numbers:** spoken numbers show as digits.

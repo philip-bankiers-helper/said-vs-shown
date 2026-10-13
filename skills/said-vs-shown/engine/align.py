@@ -13,14 +13,17 @@ Each matched word keeps its line: if the line's ASR times spill out of the line'
 starts less than 0.06 s apart, as Whisper does) are spread from that instant to the next distinct start
 (or the line end). Script words that share one ASR word share its time span (split by character
 length). Runs of unmatched script words are spread across the gap between their matched neighbours
-inside their own line, proportional to character length.
-Guarantees: word starts never decrease; every word starts in its line's window (from 0.3 s before the
-line, never before the previous line's audio end, to the line's end) and lasts >= 0.08 s; no word ends
-after its line's audio unless that minimum needs it, and none reaches into the next line's window.
+inside their own line, proportional to character length. An ASR word with no "end" ends at the next
+word's start (or 0.2 s after its own start when it is the last).
+Guarantees: word starts never decrease, and no two share a start (equal starts get a 1 ms step) unless
+the line's window is too short for the steps; every word starts in its line's window (from 0.3 s before
+the line, never before the previous line's audio end, to the line's end) and lasts >= 0.08 s; no word
+ends after its line's audio unless that minimum needs it, and none reaches into the next line's window.
 Prints per-line stats as JSON: words, asr_words, unmatched, wer, refit (start/end shift applied, s).
 """
 import bisect
 import json
+import math
 import re
 import sys
 
@@ -169,6 +172,49 @@ REACH = 2.5       # an ASR word this far (s) outside a line's audio can still ma
 NEAR = 0.1        # tie-break weight: of equally long alignments, prefer matches near the word's expected time
 COLLAPSE = 0.06   # matched words whose starts are closer than this are one collapsed ASR instant (_spread_collapsed)
 SPREAD_CPS = 25.0 # a collapsed run spread faster than this (chars/s) takes in the collapsed run right after it
+NO_END = 0.2      # an ASR word without an "end" and no later word lasts this long (_asr_words)
+STEP_MS = 1       # word starts in one line rise by at least this (ms, the timing resolution) (_distinct_starts)
+
+
+def _number(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x)
+
+
+def _asr_words(transcript):
+    """The ASR words sorted by start, each with a numeric "end". A word without one (missing, null or not a number)
+    ends where the next later word starts, or NO_END after its own start when no word starts after it. Entries
+    without text, without a numeric start, or with nothing to match (punctuation only) are left out."""
+    raw = transcript if isinstance(transcript, list) else (transcript or {}).get('words', [])
+    asr = sorted((dict(a, start=float(a['start'])) for a in raw
+                  if isinstance(a, dict) and isinstance(a.get('text'), str) and _number(a.get('start'))
+                  and canon([a['text']])), key=lambda a: a['start'])
+    later = None  # the start of the nearest word that starts after this one
+    for k in range(len(asr) - 1, -1, -1):
+        a = asr[k]
+        if k + 1 < len(asr) and asr[k + 1]['start'] > a['start']:
+            later = asr[k + 1]['start']
+        if not _number(a.get('end')):
+            a['end'] = later if later is not None else a['start'] + NO_END
+    return asr
+
+
+def _distinct_starts(vals, lo, hi):
+    """One line's word starts, vals (already in [lo, hi], never decreasing, rounded to ms), with equal starts given
+    the smallest positive step, STEP_MS: forward from the first, then back from the last where hi stops them. So no
+    two words share a start and captions never get two cues on one instant (scrambled ASR clamps whole runs onto lo
+    or the line end). Starts that differ already are kept; a line too short for the steps keeps vals."""
+    v = [int(round(x * 1000)) for x in vals]
+    if all(b > a for a, b in zip(v, v[1:])):
+        return vals
+    out = list(v)
+    for k in range(1, len(out)):
+        out[k] = max(out[k], out[k - 1] + STEP_MS)
+    out[-1] = min(out[-1], max(v[-1], int(round(hi * 1000))))
+    for k in range(len(out) - 2, -1, -1):
+        out[k] = min(out[k], out[k + 1] - STEP_MS)
+    if out[0] < min(v[0], int(round(lo * 1000))):
+        return vals
+    return [x / 1000.0 for x in out]
 
 
 def _asr_tokens(asr):
@@ -376,10 +422,11 @@ def align(script, transcript, timeline):
        (`_spread_collapsed`).
     3. Unmatched runs are interpolated inside their line only.
     4. Guarantees, per line [lo = start - LEAD (never before the previous line's audio end), end = start + dur]:
-       lo <= word start, starts never decrease, word end >= start + MIN_DUR, end <= the line's end unless the
-       minimum length needs more, and no word reaches the next line's lo."""
-    asr = transcript if isinstance(transcript, list) else transcript.get('words', [])
-    asr = sorted((a for a in asr if canon([a['text']])), key=lambda a: a['start'])
+       lo <= word start, starts rise (equal starts get a 1 ms step, `_distinct_starts`, wherever the line's window
+       has room; they never decrease), word end >= start + MIN_DUR, end <= the line's end unless the minimum length
+       needs more, and no word reaches the next line's lo.
+    An ASR word without an "end" ends at the next word's start (`_asr_words`)."""
+    asr = _asr_words(transcript)
     s_lines, t_lines = script['lines'], timeline['lines']
     if [L['id'] for L in s_lines] != [T['id'] for T in t_lines]:
         raise SystemExit('align.py: script.json and timeline.json list different lines; re-run voice.py')
@@ -447,10 +494,12 @@ def align(script, transcript, timeline):
         times = _fill(toks, times, start, end)
         # 4. guarantees
         s_max = min(end, nxt - MIN_DUR)
-        last = lo
-        for k, (s, e) in enumerate(times):
-            s = round(min(max(s, lo, last), s_max), 3)
-            last = s
+        starts, last = [], lo
+        for s, _ in times:
+            last = round(min(max(s, lo, last), s_max), 3)
+            starts.append(last)
+        starts = _distinct_starts(starts, lo, s_max) if starts else starts
+        for k, ((_, e), s) in enumerate(zip(times, starts)):
             e = round(min(max(min(e, end), s + MIN_DUR), nxt), 3)
             words.append({'id': 'w%d' % len(words), 'line': ln['id'], 'text': toks[k], 'start': s, 'end': e})
         errs = len(toks) - matched

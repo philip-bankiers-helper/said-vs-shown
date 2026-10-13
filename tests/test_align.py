@@ -24,11 +24,11 @@ def windows(timeline):
 
 
 def check_guarantees(tc, words, timeline):
-    """What align() promises for any transcript, however wrong its times."""
+    """What align() promises for any transcript, however wrong its times (when every line's window has room)."""
     win = windows(timeline)
     order = [T['id'] for T in timeline['lines']]
     for a, b in zip(words, words[1:]):
-        tc.assertLessEqual(a['start'], b['start'], (a, b))  # starts never decrease
+        tc.assertLess(a['start'], b['start'], (a, b))  # starts rise: no two words share one (a 1 ms step at least)
     for w in words:
         lo, end = win[w['line']]
         tc.assertGreaterEqual(w['start'], lo - 1e-9, w)  # inside its own line's window
@@ -453,6 +453,102 @@ class RobustnessTests(unittest.TestCase):
             words, rep = align.align(script, noisy, tl)
             self.assertEqual([w['text'] for w in words], expected, trial)
             check_guarantees(self, words, tl)
+
+
+
+class AsrEdgeTests(unittest.TestCase):
+    """An ASR word without an "end" (P5), and equal word starts from scrambled ASR (P6)."""
+
+    def test_a_word_without_end_takes_the_next_start(self):
+        script, tr, tl = synth(RobustnessTests.TEXTS)
+        tr = [dict(a) for a in tr]
+        del tr[3]['end']  # inside a line
+        tr[10]['end'] = None  # the last word of line 1: the next word is line 2's first
+        tr[12]['end'] = 'n/a'
+        del tr[-1]['end']  # the last word of all
+        asr = align._asr_words(tr)
+        self.assertEqual(asr[3]['end'], tr[4]['start'])
+        self.assertEqual(asr[10]['end'], tr[11]['start'])
+        self.assertEqual(asr[12]['end'], tr[13]['start'])
+        self.assertAlmostEqual(asr[-1]['end'], tr[-1]['start'] + align.NO_END)
+        self.assertNotIn('end', tr[3])  # the caller's transcript is not changed
+        words, rep = align.align(script, tr, tl)  # used to raise KeyError: 'end'
+        check_guarantees(self, words, tl)
+        self.assertEqual(sum(r['unmatched'] for r in rep), 0)
+        self.assertEqual(words[:-1], align.align(script, synth(RobustnessTests.TEXTS)[1], tl)[0][:-1])
+        # a word sharing its start with the next ends at the first later start, or NO_END after its own start
+        self.assertEqual(align._asr_words([{'text': 'a', 'start': 1.0}, {'text': 'b', 'start': 1.0},
+                                           {'text': 'c', 'start': 1.5, 'end': 1.7}])[0]['end'], 1.5)
+        self.assertEqual(align._asr_words([{'text': 'a', 'start': 1.0}, {'text': 'b', 'start': 1.0}])[0]['end'], 1.2)
+        # entries without text or a numeric start are left out, not a crash
+        self.assertEqual([a['text'] for a in align._asr_words({'words': [{'text': 'a', 'start': None}, {'start': 1.0},
+                                                                         {'text': 'b', 'start': 2.0, 'end': 2.1}]})],
+                         ['b'])
+
+    def collapsed_line(self):
+        """The round-3 fuzz case (seed 11, trial 181): the ASR put line 1's words after the line's end, inside line
+        2's audio, a few ms apart; the clamp put all 11 on one instant (12.471), and captions made a zero-length
+        cue of "five hundred and twenty-two" (12.571-12.571)."""
+        A = 'Twenty twenty-four was the year; five hundred and twenty-two people said so.'
+        B = 'That is the episode, and the sources are on the companion page.'
+        script = {'lines': [{'id': 'L1', 'text': A}, {'id': 'L2', 'text': B}]}
+        tl = {'lines': [{'id': 'L1', 'start': 9.614, 'dur': 2.937}, {'id': 'L2', 'start': 12.75, 'dur': 3.8}],
+              'cuts': [12.39]}
+        asr = [{'text': 'Twenty', 'start': 11.31, 'end': 11.5}]
+        asr += [{'text': t, 'start': round(12.48 + 0.005 * k, 3), 'end': round(12.485 + 0.005 * k, 3)}
+                for k, t in enumerate(A.split()[1:])]
+        asr += [{'text': t, 'start': round(12.8 + 0.3 * k, 3), 'end': round(13.05 + 0.3 * k, 3)}
+                for k, t in enumerate(B.split())]
+        return script, asr, tl
+
+    def test_equal_starts_get_a_minimal_step(self):
+        script, asr, tl = self.collapsed_line()
+        words, _ = align.align(script, asr, tl)
+        check_guarantees(self, words, tl)
+        line1 = [w['start'] for w in words if w['line'] == 'L1']
+        self.assertEqual(line1[-1], 12.471)  # the line's last possible start (the next line's lo - MIN_DUR)
+        self.assertEqual([round(b - a, 3) for a, b in zip(line1[1:], line1[2:])], [0.001] * 10)
+        cues = captions.build(words, tl['cuts'], 42)
+        for c in cues:
+            self.assertGreater(c['end'], c['start'], c)  # no zero-length cue
+        for a, b in zip(cues, cues[1:]):
+            self.assertLessEqual(a['end'], b['start'] + 1e-9, (a, b))
+
+    def test_distinct_starts(self):
+        d = align._distinct_starts
+        self.assertEqual(d([1.0, 1.0, 1.0], 0.5, 2.0), [1.0, 1.001, 1.002])  # forward from the first
+        self.assertEqual(d([1.5, 2.0, 2.0, 2.0], 0.5, 2.0), [1.5, 1.998, 1.999, 2.0])  # back from hi
+        same = [1.0, 1.25, 1.5]
+        self.assertIs(d(same, 0.5, 2.0), same)  # starts that differ are kept as they are
+        self.assertEqual(d([1.0, 1.0, 1.0], 1.0, 1.001), [1.0, 1.0, 1.0])  # no room for the steps: kept
+
+    def test_wild_fuzz_has_no_zero_length_cue(self):
+        """A short run in the spirit of the round-3 fuzzer's 'wild' mode (starts +-3 s, lengths -0.5..4 s, 15 %
+        dropped, hallucinated words, shuffled): words never go back in time and every cue lasts more than 0 s."""
+        rnd = random.Random(7)  # the earlier rule made a zero-length cue in trial 15 of this seed
+        texts = ['Twenty twenty-four was the year; five hundred and twenty-two people said so.',
+                 'The result is new, or the result is checked, or the result is the claim.',
+                 'One, two, three. One, two, three. The result, the result, the result.',
+                 'That is the episode, and the sources are on the companion page.', 'Five',
+                 'hundred people checked it twice.']
+        for trial in range(120):
+            script, tr, tl = synth(rnd.sample(texts, k=rnd.randint(2, len(texts))), gap=rnd.choice([0.0, 0.2, 0.4, 0.7]),
+                                   rate=rnd.uniform(0.18, 0.4))
+            tl['cuts'] = [c for c in tl['cuts'] if rnd.random() < 0.5]
+            noisy = []
+            for a in tr:
+                if rnd.random() < 0.15:
+                    continue
+                s = a['start'] + rnd.uniform(-3, 3)
+                noisy.append({'text': a['text'], 'start': round(s, 3), 'end': round(s + rnd.uniform(-0.5, 4.0), 3)})
+                if rnd.random() < 0.1:
+                    noisy.append({'text': rnd.choice(['the', 'result', 'five', 'uh']), 'start': s + 0.1, 'end': s + 0.5})
+            rnd.shuffle(noisy)
+            words, _ = align.align(script, noisy, tl)
+            for a, b in zip(words, words[1:]):
+                self.assertLessEqual(a['start'], b['start'], (trial, a, b))
+            for c in captions.build(words, tl['cuts'], 42):
+                self.assertGreater(c['end'], c['start'], (trial, c))
 
 
 if __name__ == '__main__':
