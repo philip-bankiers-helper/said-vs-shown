@@ -7,7 +7,9 @@ usage: captions.py <words.json> <out_dir> --cuts 9.40,19.95 [--display script.js
 Rules: one line per cue, <= max_chars (config.json), clause-first (break on punctuation), long
 clauses split into balanced parts with a penalty for stranding a function word at a cue end, very
 short chunks merged forward, never a cue across a scene cut, 0.83 s minimum, reading speed
-<= max_cps (reported; --strict exits 1). Text always comes from the script words; the script's
+<= max_cps: a cue over it first borrows what its neighbours can spare (the pause after it, up to
+0.3 s before its first word, up to 0.1 s of the next cue's lead), then it is reported (--strict
+exits 1). Text always comes from the script words; the script's
 "display" map then turns spoken forms into written ones on word boundaries only
 ("five hundred and twenty-two" -> "522"); a phrase split across two cues stays spoken.
 Writes cues.json, captions.vtt, captions.srt and prints a QA summary as JSON.
@@ -108,12 +110,17 @@ def apply_display(cues, dmap):
     return cues
 
 
-def time_cues(cues, cuts):
+MIN_CUE, BORROW_LEAD, BORROW_LAG = 0.83, 0.3, 0.1
+
+
+def time_cues(cues, cuts, max_cps=None):
     """Lead 0.05 s, tail +0.25 s, clamp to the next cue and to the next scene cut, minimum 0.83 s.
 
     The next cut is chosen from the cue's ORIGINAL start, and the lead never moves a start before the cut that
     opens the cue's own scene: a cue starting just after a cut would otherwise lead across it, take that same
-    cut as its end and flash for a few hundredths of a second."""
+    cut as its end and flash for a few hundredths of a second.
+    With max_cps, a cue faster than that borrows time its neighbours can spare (relieve)."""
+    firsts = [c['start'] for c in cues]
     starts = []
     for c in cues:
         own = max((x for x in cuts if x <= c['start']), default=0.0)
@@ -123,10 +130,50 @@ def time_cues(cues, cuts):
         c['start'] = starts[i]
         nxt = starts[i + 1] if i + 1 < len(cues) else c['end'] + 1.0
         c['end'] = round(min(c['end'] + 0.25, nxt, cut), 3)
-        if c['end'] - c['start'] < 0.83:
-            c['end'] = round(min(c['start'] + 0.83, nxt, cut), 3)
+        if c['end'] - c['start'] < MIN_CUE:
+            c['end'] = round(min(c['start'] + MIN_CUE, nxt, cut), 3)
+    if max_cps:
+        relieve(cues, firsts, cuts, max_cps)
+    for c in cues:
         c['cps'] = round(len(c['text']) / max(0.01, c['end'] - c['start']), 1)
     return cues
+
+
+def relieve(cues, firsts, cuts, max_cps):
+    """Give a cue faster than max_cps the time it needs (len / max_cps) from what its neighbours can spare, in this
+    order: the pause after it, an earlier start (at most BORROW_LEAD before its first word, never before the cut that
+    opens its scene), then a later start for the next cue (at most BORROW_LAG after that cue's first word, never
+    across a cut). A neighbour never drops below its own need, so ASR timing jitter of a tenth or two of a second
+    cannot fail the reading-speed gate on its own, while genuinely fast speech still does."""
+    def need(c):
+        return max(MIN_CUE, len(c['text']) / float(max_cps) + 0.002)
+    for i, c in enumerate(cues):
+        short = need(c) - (c['end'] - c['start'])
+        if len(c['text']) / max(0.01, c['end'] - c['start']) <= max_cps or short <= 0:
+            continue
+        own = max((x for x in cuts if x <= firsts[i]), default=0.0)
+        cut = next((x for x in cuts if x > firsts[i]), 1e9)
+        nxt = cues[i + 1] if i + 1 < len(cues) else None
+        prv = cues[i - 1] if i > 0 else None
+        # 1. the pause before the next cue (or the next cut)
+        room = min(nxt['start'] if nxt else c['end'] + short, cut) - c['end']
+        take = min(short, max(0.0, room))
+        c['end'] = round(c['end'] + take, 3)
+        short -= take
+        # 2. start earlier
+        if short > 0:
+            lo = max(own, firsts[i] - BORROW_LEAD, (prv['start'] + need(prv)) if prv else 0.0)
+            take = min(short, max(0.0, c['start'] - lo))
+            c['start'] = round(c['start'] - take, 3)
+            if prv and prv['end'] > c['start']:
+                prv['end'] = c['start']
+            short -= take
+        # 3. the next cue starts a little later
+        if short > 0 and nxt and nxt['start'] < cut:
+            hi = min(cut, firsts[i + 1] + BORROW_LAG, nxt['end'] - need(nxt))
+            take = min(short, max(0.0, hi - c['end']))
+            c['end'] = round(c['end'] + take, 3)
+            nxt['start'] = max(nxt['start'], c['end'])
 
 
 def ts(t, sep):
@@ -137,10 +184,11 @@ def ts(t, sep):
     return '%02d:%02d:%02d%s%03d' % (h, m, s, sep, ms)
 
 
-def build(words, cuts, max_chars, dmap=None):
+def build(words, cuts, max_chars, dmap=None, max_cps=None):
+    """Cues from aligned words. max_cps defaults to config.json's; a cue over it borrows neighbours' slack (relieve)."""
     cues = chunk(words, cuts, max_chars)
     apply_display(cues, dmap or {})
-    return time_cues(cues, cuts)
+    return time_cues(cues, cuts, load_config()['max_cps'] if max_cps is None else max_cps)
 
 
 def write(cues, out):
@@ -176,7 +224,7 @@ def main(argv=None):
     if a.display:
         with open(a.display, encoding='utf-8') as f:
             dmap = json.load(f).get('display', {}) or {}
-    cues = build(words, cuts, a.max_chars, dmap)
+    cues = build(words, cuts, a.max_chars, dmap, a.max_cps)
     write(cues, a.out)
     bad = [c for c in cues if c['cps'] > a.max_cps or len(c['text']) > a.max_chars]
     print(json.dumps({'cues': len(cues), 'max_chars': max(len(c['text']) for c in cues),

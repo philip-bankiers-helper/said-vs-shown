@@ -184,13 +184,17 @@ if (hfOk) {
   else report('WARN', 'asr', 'no model yet: Whisper small.en (~470 MB) downloads on first transcription', `${SETUP} --with-parakeet`)
 }
 
-// 10. HyperFrames skills
+// 10. HyperFrames skills: optional. They live in the user's global agent skill folders, which setup only changes
+// with the user's consent (setup.sh --no-skills leaves them alone), and the pinned CLI serves the same docs.
 if (hfOk) {
   const r = sh('npx', ['-y', HF, 'skills', 'check', '--json'])
   const j = lastJson(r.out)
-  if (!j) report('WARN', 'hf skills', 'could not read `skills check`', `npx -y ${HF} skills update`)
-  else if (j.summary?.coreMissing) report('FAIL', 'hf skills', `${j.summary.coreMissing} core skill(s) missing`, `npx -y ${HF} skills update`)
-  else if (j.summary?.outdated) report('WARN', 'hf skills', `${j.summary.outdated} outdated in ${j.location?.replace(os.homedir(), '~')}`, `npx -y ${HF} skills update`)
+  const docs = `agents can read HyperFrames docs via \`npx -y ${HF} docs <topic>\` (compositions, data-attributes, gsap)`
+  const install = `npx -y ${HF} skills update  (changes the global agent skill folders: ask the user first)`
+  if (!j) report('WARN', 'hf skills', `could not read \`skills check\`; ${docs}`, install)
+  else if (j.summary?.coreMissing)
+    report('WARN', 'hf skills', `${j.summary.coreMissing} core skill(s) not installed; ${docs}`, install)
+  else if (j.summary?.outdated) report('WARN', 'hf skills', `${j.summary.outdated} outdated in ${j.location?.replace(os.homedir(), '~')}`, install)
   else report('PASS', 'hf skills', `current in ${j.location?.replace(os.homedir(), '~')}`)
 }
 

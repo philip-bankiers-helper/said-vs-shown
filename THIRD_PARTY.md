@@ -4,7 +4,7 @@ Said vs. Shown is MIT-licensed. It uses the following. **Bundled** means it ship
 
 | Component | How it's used | License | Notes |
 |---|---|---|---|
-| [HyperFrames](https://github.com/heygen-com/hyperframes) CLI + skills (HeyGen) | Fetched via `npx`; renders HTML to video | Apache-2.0 | Anonymous telemetry is on by default; disable with `npx hyperframes telemetry disable` or `HYPERFRAMES_NO_TELEMETRY=1` |
+| [HyperFrames](https://github.com/heygen-com/hyperframes) CLI + skills (HeyGen) | Fetched via `npx`; renders HTML to video | Apache-2.0 | Anonymous telemetry is on by default; disable with `npx -y hyperframes@0.8.147 telemetry disable` (the version pinned in `skills/said-vs-shown/engine/config.json`) or `HYPERFRAMES_NO_TELEMETRY=1` |
 | [GSAP](https://gsap.com) | Animation runtime, loaded by compositions | GSAP Standard "no charge" license | Free to use; not an OSI license. See https://gsap.com/standard-license/ |
 | [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) | Fetched; local text-to-speech model | Apache-2.0 | |
 | [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) | Fetched into a local venv | MIT | Pulls in phonemizer and espeak-ng (GPL-3.0+). They are installed on your machine by setup, never bundled here |

@@ -1,5 +1,6 @@
 """The disclosure rule (companion / fill_scenes / new_episode / deliver), the one-thing question split,
 deliver.py's transcript.md and the paths new_episode.py prints. Offline; standard library only."""
+import io
 import os
 import re
 import sys
@@ -32,7 +33,7 @@ def mini_episode(d, **episode):
 
 class DisclosureTests(unittest.TestCase):
     def test_review_follows_reviewed_by_only(self):
-        d = companion.disclosure_of
+        d = lambda E: companion.disclosure_of(E, warn_to=None)  # noqa: E731
         self.assertEqual(d({}), UNREVIEWED)
         self.assertEqual(d({'disclosure': UNREVIEWED, 'reviewed_by': 'Jane Doe'}),
                          'AI-produced · AI voice · every claim sourced · reviewed by Jane Doe')
@@ -42,11 +43,59 @@ class DisclosureTests(unittest.TestCase):
         self.assertEqual(d({'disclosure': claimed, 'reviewed_by': None, 'editor': 'Sam'}), UNREVIEWED)
 
     def test_a_review_claim_anywhere_is_dropped(self):
-        d = companion.disclosure_of
-        self.assertEqual(d({'disclosure': 'AI-produced · reviewed by Jane · every claim sourced'}),
-                         'AI-produced · every claim sourced · not yet human-reviewed')
+        d = lambda E: companion.disclosure_of(E, warn_to=None)  # noqa: E731
+        self.assertEqual(d({'disclosure': 'AI-produced · reviewed by Jane · every claim sourced'}), UNREVIEWED)
         self.assertEqual(d({'disclosure': 'reviewed by Jane'}), UNREVIEWED)
-        self.assertEqual(d({'disclosure': 'Made by AI · Human-reviewed'}), 'Made by AI · not yet human-reviewed')
+        self.assertEqual(d({'disclosure': 'Made by AI · Human-reviewed'}),
+                         'AI-produced · AI voice · every claim sourced · Made by AI · not yet human-reviewed')
+
+    # every way a free-text segment could claim a person checked the episode
+    HUMAN_CHECK = ['fact-checked by Sam', 'Fact checked by the Desk', 'human-checked by Ana', 'checked by a human',
+                   'approved by Sam', 'Approval: Legal', 'Reviewer: Jane', 'Reviewers: Jane, Sam', 'reviewed by Jane',
+                   'peer-reviewed', 'Human-reviewed', 'verified by a human editor', 'Verified', 'human verified',
+                   'editor: Sam', 'Editor Sam Lee', 'editorial review: Sam', 'Editorial team', 'edited by Sam',
+                   'proofread by Sam', 'vetted by our newsroom', 'signed off by Sam', 'sign-off: Sam',
+                   'audited by Sam', 'human oversight', 'supervised by Sam', 'validated by experts',
+                   'confirmed by our staff', 'curated by people', 'a journalist looked at it', 'human in the loop',
+                   'reviewed and approved', 'QA checked']
+
+    def test_human_check_claims_are_dropped_with_a_warning(self):
+        for claim in self.HUMAN_CHECK:
+            for disclosure in (claim, 'AI-produced · AI voice · every claim sourced · ' + claim, claim + ' · AI voice'):
+                with self.subTest(disclosure=disclosure):
+                    err = io.StringIO()
+                    self.assertEqual(companion.disclosure_of({'disclosure': disclosure}, warn_to=err), UNREVIEWED)
+                    self.assertIn('warning', err.getvalue())
+                    self.assertIn(repr(claim), err.getvalue())
+                    err = io.StringIO()
+                    self.assertEqual(companion.disclosure_of({'disclosure': disclosure, 'reviewed_by': 'Jane Doe'}, warn_to=err),
+                                     'AI-produced · AI voice · every claim sourced · reviewed by Jane Doe')
+                    self.assertIn(repr(claim), err.getvalue())
+
+    def test_known_parts_always_and_harmless_user_parts_kept(self):
+        d = lambda E: companion.disclosure_of(E, warn_to=None)  # noqa: E731
+        self.assertEqual(d({'disclosure': 'every claim sourced'}), UNREVIEWED)  # known parts are never lost
+        self.assertEqual(d({'disclosure': 'AI voice · music: CC0 loops · AI-produced'}),
+                         'AI-produced · AI voice · every claim sourced · music: CC0 loops · not yet human-reviewed')
+        self.assertEqual(d({'disclosure': 'Made by AI · ai voice'}),
+                         'AI-produced · AI voice · every claim sourced · Made by AI · not yet human-reviewed')
+        parts, dropped = companion.disclosure_parts({'disclosure': 'Thumbnail: illustration · approved by Sam'})
+        self.assertEqual(parts, ['AI-produced', 'AI voice', 'every claim sourced', 'Thumbnail: illustration',
+                                 'not yet human-reviewed'])
+        self.assertEqual(dropped, ['approved by Sam'])
+        self.assertEqual(sum(1 for p in parts if 'review' in p), 1)  # the single generated segment
+
+    def test_the_tools_own_segment_round_trips_silently(self):
+        for E in ({'disclosure': UNREVIEWED},
+                  {'disclosure': 'AI-produced · AI voice · every claim sourced · reviewed by Jane Doe', 'reviewed_by': 'Jane Doe'},
+                  {'disclosure': UNREVIEWED, 'reviewed_by': 'Jane Doe'}):
+            err = io.StringIO()
+            companion.disclosure_of(E, warn_to=err)
+            self.assertEqual(err.getvalue(), '', E)
+        err = io.StringIO()  # a different name than reviewed_by records is a claim, not the tools' own segment
+        self.assertTrue(companion.disclosure_of({'disclosure': '… · reviewed by Sam', 'reviewed_by': 'Jane Doe'},
+                                                warn_to=err).endswith('· reviewed by Jane Doe'))
+        self.assertIn("'reviewed by Sam'", err.getvalue())
 
     def test_fill_scenes_close_uses_the_same_rule(self):
         with tempfile.TemporaryDirectory() as d:
@@ -54,10 +103,25 @@ class DisclosureTests(unittest.TestCase):
             ep = fill_scenes.Episode(d)
             self.assertEqual(ep.disclosure(), UNREVIEWED)
             self.assertTrue(any('reviewed_by' in n for n in ep.notes))
+            self.assertTrue(any(n.startswith('warning:') and "'reviewed by Sam'" in n for n in ep.notes), ep.notes)
             cfg = fill_scenes.build_close(ep, fill_scenes.Words(None), fill_scenes.Beats('close'))
             self.assertEqual(cfg['receipt']['disclosure'], UNREVIEWED)
             ep.E['reviewed_by'] = 'Jane Doe'
             self.assertTrue(ep.disclosure().endswith(' · reviewed by Jane Doe'))
+
+    def test_companion_page_drops_free_text_check_claims(self):
+        with tempfile.TemporaryDirectory() as d:
+            ep = mini_episode(os.path.join(d, 'ep'), disclosure='AI-produced · fact-checked by Sam · approved by Legal · '
+                                                                  'verified by a human editor · Reviewer: Jane · music: CC0')
+            out = os.path.join(d, 'page')
+            r = run([sys.executable, os.path.join(ENGINE, 'companion.py'), ep, out])
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(os.path.join(out, 'index.html'), encoding='utf-8') as f:
+                page = f.read()
+            self.assertIn('AI-produced · AI voice · every claim sourced · music: CC0 · not yet human-reviewed', page)
+            for claim in ('fact-checked', 'approved', 'verified', 'Reviewer'):
+                self.assertNotIn(claim, page)
+                self.assertIn(claim, r.stderr)
 
     def test_companion_page_never_claims_an_unrecorded_review(self):
         with tempfile.TemporaryDirectory() as d:
@@ -66,6 +130,7 @@ class DisclosureTests(unittest.TestCase):
             out = os.path.join(d, 'page')
             r = run([sys.executable, os.path.join(ENGINE, 'companion.py'), ep, out])
             self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("warning: disclosure segment 'reviewed by Sam' dropped", r.stderr)
             with open(os.path.join(out, 'index.html'), encoding='utf-8') as f:
                 page = f.read()
             self.assertIn('not yet human-reviewed', page)

@@ -1,6 +1,7 @@
 """Config, portability and hygiene checks for the core engine files, plus offline smoke tests of
 the CLIs (receipt.mjs, loudfix.sh, voice.py, setup.sh, doctor.mjs). Tests that need node, ffmpeg or
 a local Chrome skip themselves when those are missing."""
+import io
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from helpers import ENGINE, ROOT, have, load, run
 
@@ -204,6 +206,115 @@ class ReceiptOfflineTests(unittest.TestCase):
         meta = load(self.out[:-4] + '.json')
         self.assertFalse(meta['found'])
         self.assertFalse(os.path.exists(self.out))
+
+
+def node_at_least(major, minor):
+    if not have('node'):
+        return False
+    r = run(['node', '-p', 'process.versions.node'])
+    a, b = (int(x) for x in r.stdout.strip().split('.')[:2])
+    return (a, b) >= (major, minor)
+
+
+@unittest.skipUnless(node_at_least(22, 12), 'node >= 22.12 not installed')
+class GlobalSkillsDeclineTests(unittest.TestCase):
+    """A user may decline the global HyperFrames skills install: setup.sh --no-skills leaves those folders alone
+    and doctor only WARNs (agents read the docs through the pinned CLI), so stage 0 can still pass. Offline: npx,
+    uv, ffmpeg and ffprobe are stubs; python3 is this interpreter."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='svs-skills-test-')
+        self.bin = os.path.join(self.tmp, 'bin')
+        os.makedirs(self.bin)
+        self.skills = os.path.join(self.tmp, 'skills-check.json')
+        stubs = {
+            'npx': '#!/bin/sh\n# fake npx: answers the HyperFrames calls setup/doctor make, offline\n'
+                   'shift; shift\ncase "$*" in\n'
+                   '  --version) echo %s ;;\n'
+                   '  "models list --json") echo \'{"ok":true,"models":[{"engine":"whisper","installed":true}]}\' ;;\n'
+                   '  "skills check --json") cat "%s" ;;\n'
+                   '  "telemetry status") echo "Status: disabled" ;;\n'
+                   '  *) echo "fake npx: unexpected $*" >&2; exit 9 ;;\nesac\n' % (CONFIG['hyperframes'], self.skills),
+            'uv': '#!/bin/sh\necho "uv 0.0.0"\n',
+            'ffmpeg': '#!/bin/sh\necho "ffmpeg version 0"\n',
+            'ffprobe': '#!/bin/sh\necho "ffprobe version 0"\n',
+            'python3': '#!/bin/sh\nexec "%s" "$@"\n' % sys.executable,
+        }
+        for name, body in stubs.items():
+            path = os.path.join(self.bin, name)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(body)
+            os.chmod(path, 0o755)
+        self.env = {'PATH': os.pathsep.join([self.bin, os.path.dirname(shutil.which('node')), '/usr/bin', '/bin']),
+                    'HOME': self.tmp, 'SVS_HOME': os.path.join(self.tmp, 'svs'),
+                    'CHROME_PATH': os.path.join(self.tmp, 'no-such-chrome')}
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def doctor(self, summary):
+        with open(self.skills, 'w', encoding='utf-8') as f:
+            json.dump({'location': os.path.join(self.tmp, '.claude', 'skills'), 'summary': summary}, f)
+        r = run(['node', os.path.join(ENGINE, 'doctor.mjs'), '--no-smoke'], env=self.env, timeout=120)
+        line = next((ln for ln in r.stdout.splitlines() if ln[6:].startswith('hf skills')), None)
+        self.assertIsNotNone(line, r.stdout + r.stderr)
+        return line, r.stdout
+
+    def test_doctor_warns_not_fails_without_core_skills(self):
+        line, out = self.doctor({'current': 0, 'outdated': 0, 'missing': 21, 'coreMissing': 11})
+        self.assertTrue(line.startswith('WARN '), line)
+        self.assertIn('11 core skill(s) not installed', line)
+        self.assertIn('agents can read HyperFrames docs via `npx -y hyperframes@%s docs <topic>`' % CONFIG['hyperframes'], line)
+        self.assertNotRegex(out, r'(?m)^FAIL\s+hf skills')
+        line, _ = self.doctor({'current': 11, 'outdated': 0, 'missing': 10, 'coreMissing': 0})
+        self.assertTrue(line.startswith('PASS '), line)
+
+    def test_setup_no_skills_leaves_global_skill_folders_alone(self):
+        setup = os.path.join(ENGINE, 'setup.sh')
+        update = '[dry-run] npx -y hyperframes@%s skills update' % CONFIG['hyperframes']
+        r = run(['sh', setup, '--dry-run'], env=self.env, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(update, r.stdout)
+        r = run(['sh', setup, '--dry-run', '--no-skills'], env=self.env, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn('skills update', r.stdout.split('==> 3/6')[1].split('==> 4/6')[0])
+        self.assertIn('skipped (--no-skills)', r.stdout)
+        self.assertIn('npx -y hyperframes@%s docs <topic>' % CONFIG['hyperframes'], r.stdout)
+        self.assertNotIn('~/.claude/skills', r.stdout)
+        self.assertIn('--no-skills', run(['sh', setup, '--help']).stdout)
+
+
+class VoiceAsrTests(unittest.TestCase):
+    """voice.py --asr auto|whisper|parakeet picks the transcription engine (auto: Parakeet if installed)."""
+
+    @classmethod
+    def setUpClass(cls):
+        import voice
+        cls.voice = voice
+
+    def listing(self, parakeet_installed):
+        models = [{'engine': 'parakeet', 'installed': parakeet_installed}, {'engine': 'whisper', 'installed': True}]
+        return mock.Mock(stdout=json.dumps({'ok': True, 'models': models}), returncode=0)
+
+    def test_whisper_needs_no_model_lookup(self):
+        with mock.patch.object(self.voice.subprocess, 'run', side_effect=AssertionError('no lookup for whisper')):
+            self.assertEqual(self.voice.asr_args('whisper', ['npx']), ['--engine', 'whisper', '--model', 'small.en'])
+
+    def test_auto_and_parakeet(self):
+        with mock.patch.object(self.voice.subprocess, 'run', return_value=self.listing(True)):
+            self.assertEqual(self.voice.asr_args('auto', ['npx']), ['--engine', 'parakeet'])
+            self.assertEqual(self.voice.asr_args('parakeet', ['npx']), ['--engine', 'parakeet'])
+        with mock.patch.object(self.voice.subprocess, 'run', return_value=self.listing(False)):
+            self.assertEqual(self.voice.asr_args('auto', ['npx']), ['--engine', 'whisper', '--model', 'small.en'])
+            with mock.patch('sys.stderr', new_callable=io.StringIO) as err, self.assertRaises(SystemExit):
+                self.voice.asr_args('parakeet', ['npx'])
+            self.assertIn('--with-parakeet', err.getvalue())
+
+    def test_cli(self):
+        r = run([sys.executable, os.path.join(ENGINE, 'voice.py'), '--help'])
+        self.assertIn('--asr {auto,whisper,parakeet}', r.stdout)
+        r = run([sys.executable, os.path.join(ENGINE, 'voice.py'), 'x', '--asr', 'vosk'])
+        self.assertEqual(r.returncode, 2)
 
 
 @unittest.skipUnless(have('ffmpeg'), 'ffmpeg not installed')

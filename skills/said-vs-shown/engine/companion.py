@@ -207,21 +207,52 @@ def install_line(repo_url):
     return f'npx skills add {repo[:-4] if repo.endswith(".git") else repo}'
 
 
-DISCLOSURE_BASE = 'AI-produced · AI voice · every claim sourced'
+DISCLOSURE_PARTS = ('AI-produced', 'AI voice', 'every claim sourced')
+DISCLOSURE_BASE = ' · '.join(DISCLOSURE_PARTS)
+
+# Any segment that speaks about a person checking the episode. Generous on purpose: dropping a harmless segment
+# costs a warning, keeping a false "fact-checked by Sam" next to "not yet human-reviewed" costs the disclosure.
+HUMAN_CHECK_CLAIM = re.compile(
+    r'review|check|approv|verif|vett?(?:ed|ing)\b|\bvet\b|editor|editorial|\bedit(?:ed|s|ing)?\b|proof-?read|'
+    r'audit|sign(?:ed|s)?[- ]?off|oversight|oversee|supervis|validat|confirm|vouch|endors|certif|accredit|'
+    r'\bhuman|\bperson\b|\bpeople\b|journalist|staff|moderat|curat|scrutin|inspect|cleared\b|\bok(?:ay)?ed\b',
+    re.I)
 
 
-REVIEW_CLAIM = re.compile(r'\b(?:un)?review(?:ed)?\b', re.I)  # any segment about review
+def disclosure_parts(E):
+    """(segments, dropped): the disclosure's segments and the user segments left out.
+
+    The known parts (AI-produced · AI voice · every claim sourced) come first, then each segment of
+    episode.json "disclosure" that is not one of them and says nothing about human checking, review,
+    approval, verification or editing by a person, then the one generated segment: "reviewed by <reviewed_by>"
+    when a named person reviewed the episode (stage 10), else "not yet human-reviewed"."""
+    reviewer = ' '.join(str(E.get('reviewed_by') or '').split())
+    generated = f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed'
+    # the tools' own last segment, written back into episode.json (new_episode.py does): dropped without a warning
+    own = {'not yet human-reviewed', generated.lower()}
+    segs, dropped = list(DISCLOSURE_PARTS), []
+    for s in str(E.get('disclosure') or '').split('·'):
+        s = ' '.join(s.split())
+        if not s or s.lower() in {x.lower() for x in segs} or s.lower() in own:
+            continue
+        if HUMAN_CHECK_CLAIM.search(s):
+            dropped.append(s)
+        else:
+            segs.append(s)
+    return segs + [generated], dropped
 
 
-def disclosure_of(E):
+def disclosure_of(E, warn_to=sys.stderr):
     """The one disclosure line for the video (fill_scenes.py close), the page and deliver.py (frame.md → Disclosure
-    line format): episode.json "disclosure" with every segment that speaks about review dropped, then
-    "reviewed by <reviewed_by>" when a named person reviewed the episode (stage 10), else "not yet human-reviewed".
-    So no text in episode.json can claim a review that reviewed_by does not record."""
-    segs = [s.strip() for s in str(E.get('disclosure') or '').split('·')]
-    segs = [s for s in segs if s and not REVIEW_CLAIM.search(s)]
-    reviewer = str(E.get('reviewed_by') or '').strip()
-    return ' · '.join(segs or [DISCLOSURE_BASE]) + ' · ' + (f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed')
+    line format), built by disclosure_parts: only reviewed_by can make it say a person reviewed the episode, so no
+    text in episode.json can claim a review, check or approval that reviewed_by does not record. Every user segment
+    it drops is named in a warning on warn_to (None: silent)."""
+    segs, dropped = disclosure_parts(E)
+    if dropped and warn_to is not None:
+        for s in dropped:
+            print(f'said-vs-shown: warning: disclosure segment {s!r} dropped: only "reviewed_by" (stage 10) may say '
+                  f'a person checked the episode', file=warn_to)
+    return ' · '.join(segs)
 
 
 def build(ep_dir, out, video_name=None, repo_url=None, install=None):

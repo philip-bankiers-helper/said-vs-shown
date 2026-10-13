@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """voice.py — script.json -> narration.wav + transcript + aligned words + captions + scene words, in one pass.
 
-usage: voice.py <project_dir> [--only L2,L5] [--lenient]
+usage: voice.py <project_dir> [--only L2,L5] [--asr auto|whisper|parakeet] [--lenient]
 
 Reads <project>/audio/script.json ({voice?, speed?, engine?, display, lines:[{id, scene, text, gap_after, speed?}]};
 voice and speed default to engine/config.json).
@@ -10,9 +10,11 @@ voice and speed default to engine/config.json).
    --only L2,L5 re-voices exactly those lines (an id or its prefix before "-") and freezes the rest:
    any other line whose take is stale or missing is an error instead of being re-voiced.
 2. Mixes the takes on a timeline (0.35 s lead-in + per-line gap_after), loudnorm to the config target.
-3. Transcribes the mix: Parakeet if installed, else Whisper small.en; transcript.json is always rewritten
-   and the engine is recorded in timeline.json.
-4. align.py (ASR timings on the script's words), captions.py (cues/VTT/SRT), scene_words.py.
+3. Transcribes the mix. --asr auto (default): Parakeet if installed (setup.sh --with-parakeet), else Whisper
+   small.en; --asr whisper or --asr parakeet forces one. transcript.json is always rewritten and the engine is
+   recorded in timeline.json.
+4. align.py (ASR timings on the script's words: one global alignment, each word kept inside its line's audio, so
+   Whisper's early or late line edges cannot cross lines), captions.py (cues/VTT/SRT), scene_words.py.
 Scene cuts sit 0.36 s before the first line of each new scene.
 Writes audio/{Lnn.wav, timeline.json, narration.wav, transcript.json, words.json, cues.json,
 captions.vtt, captions.srt, scene-words.json}.
@@ -111,6 +113,19 @@ def loudness(p):
     return (float(i[-1]) if i else None), (float(tp[-1]) if tp else None)
 
 
+def asr_args(choice, HF):
+    """`transcribe` engine flags for --asr auto|whisper|parakeet."""
+    if choice == 'whisper':
+        return ['--engine', 'whisper', '--model', 'small.en']
+    models = last_json(subprocess.run(HF + ['models', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True,
+                                      text=True, encoding='utf-8', errors='replace').stdout) or {}
+    parakeet = any(m.get('engine') == 'parakeet' and m.get('installed') for m in models.get('models', []))
+    if choice == 'parakeet' and not parakeet:
+        die('--asr parakeet: Parakeet is not installed (sh %s --with-parakeet), or use --asr whisper'
+            % os.path.join(ENGINE, 'setup.sh'))
+    return ['--engine', 'parakeet'] if parakeet else ['--engine', 'whisper', '--model', 'small.en']
+
+
 def matches_only(line_id, only):
     return any(line_id == o or line_id.startswith(o + '-') for o in only)
 
@@ -119,6 +134,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description='script.json -> narration, words, captions, scene words')
     ap.add_argument('project')
     ap.add_argument('--only', default='', help='comma-separated line ids (or id prefixes) to re-voice; freeze the rest')
+    ap.add_argument('--asr', choices=('auto', 'whisper', 'parakeet'), default='auto',
+                    help='speech recognition for the word timings: auto = Parakeet if installed, else Whisper small.en')
     ap.add_argument('--lenient', action='store_true', help='report gate failures instead of exiting 1')
     a = ap.parse_args(argv)
 
@@ -204,10 +221,7 @@ def main(argv=None):
     lufs, true_peak = loudness(narration)
 
     # 3. transcription in a scratch dir (HyperFrames patches caption HTML under --dir), result always overwritten
-    models = last_json(subprocess.run(HF + ['models', 'list', '--json'], stdin=subprocess.DEVNULL, capture_output=True,
-                                      text=True, encoding='utf-8', errors='replace').stdout) or {}
-    parakeet = any(m.get('engine') == 'parakeet' and m.get('installed') for m in models.get('models', []))
-    engine_args = ['--engine', 'parakeet'] if parakeet else ['--engine', 'whisper', '--model', 'small.en']
+    engine_args = asr_args(a.asr, HF)
     tmp = tempfile.mkdtemp(prefix='svs-asr-')
     try:
         r = run(HF + ['transcribe', narration, '--dir', tmp, *engine_args, '--json'], 'transcription (%s)' % engine_args[1])

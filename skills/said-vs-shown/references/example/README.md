@@ -14,6 +14,8 @@ Every data file an episode needs before the voice, in the exact shapes the tools
 | `video/scenes.json` | 5 (sfx after 7) | the scene ids in script order, with two sound marks |
 | `video/specs/03-math-boundary.json` | 8 | a boundary spec for `engine/boundary.py` |
 
+`voice.py` passes its strict gates on this script with either speech recognizer: Whisper small.en, which a fresh install uses, and Parakeet (`setup.sh --with-parakeet`); `--asr whisper|parakeet` picks one.
+
 Not included, because tools make them: the captures (`capture.sh`), the receipts `video/assets/receipts/R01-math-intro.*` and `R02-math-issues.*` (`receipt.mjs`), the audio and `scene-words.json` (`voice.py`), and the compositions (stage 8). A one-story episode has no board.
 
 Claim ids in `script.json` → `claims`: `storyN:cNN` points at `ledger/claims.json`, with an optional note in parentheses (`story1:c01(fixed: attributed)`); `brief:<anchor>` points at the brief; `editorial` marks the production's own framing. Lines with no factual claim (the close) have `[]`.

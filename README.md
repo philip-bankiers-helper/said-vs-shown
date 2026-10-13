@@ -84,7 +84,7 @@ sh <skill>/engine/setup.sh --dry-run   # what setup would download and change; c
 sh <skill>/engine/setup.sh             # then run doctor again
 ```
 
-Setup is idempotent; doctor prints a fix (with the full path) for anything that fails. Setup also installs the HyperFrames agent skills globally (see [What it runs, downloads and sends](#what-it-runs-downloads-and-sends)).
+Setup is idempotent; doctor prints a fix (with the full path) for anything that fails. Setup also installs the HyperFrames agent skills globally (see [What it runs, downloads and sends](#what-it-runs-downloads-and-sends)); `setup.sh --no-skills` leaves your agents' skill folders alone, and doctor then only warns: agents read the HyperFrames docs through the pinned CLI instead.
 
 **Requirements:** macOS or Linux (Windows via WSL); Node ≥ 22.12; ffmpeg; Python ≥ 3.9 and [uv](https://docs.astral.sh/uv/) (setup creates its own Python 3.12 venv for Kokoro); about 1.7 GB of model and browser downloads on a fresh machine; ≥ 5 GB free disk to render.
 
@@ -127,7 +127,7 @@ Quality gates fail the run instead of shipping quietly:
 - 145–185 words per minute
 - captions ≤ 42 characters and ≤ 20 characters per second (21 tolerated)
 - −16 LUFS loudness
-- zero layout or contrast findings (`hyperframes check --strict`)
+- zero layout or contrast findings (`npx -y hyperframes@<version> check --strict`)
 - the WCAG flash limit
 
 Every on-screen claim is traced to the ledger by the agent at the script stage (each line lists its claim ids); that check is not yet automated.
@@ -140,8 +140,8 @@ Every on-screen claim is traced to the ledger by the agent at the script stage (
   - the HyperFrames CLI via `npx` (~120 MB), plus HyperFrames' own Chrome (~390 MB) on the first capture or render
   - a headless Chrome (~200 MB), only if none is found
   - Whisper small.en (~470 MB) on the first transcription, or optionally Parakeet ASR (~640 MB) instead
-- **Installs agent skills globally:** setup runs `npx hyperframes@<version> skills update`, which installs or overwrites the HyperFrames skills (latest from GitHub) in `~/.claude/skills` and `~/.agents/skills` and links them into the skill folders of other agents it finds (Cursor, Gemini CLI, OpenCode, Windsurf). Everything else goes under `~/.said-vs-shown`. When your agent runs the skill, it asks you before it runs setup.
-- **Runs locally:** text-to-speech, speech recognition, rendering. It needs **no API keys and no paid services**. `hyperframes snapshot` would send frames to Gemini when `GEMINI_API_KEY` is set; the skill always passes `--describe false`.
+- **Installs agent skills globally:** setup runs `npx hyperframes@<version> skills update`, which installs or overwrites the HyperFrames skills (latest from GitHub) in `~/.claude/skills` and `~/.agents/skills` and links them into the skill folders of other agents it finds (Cursor, Gemini CLI, OpenCode, Windsurf). Everything else goes under `~/.said-vs-shown`. When your agent runs the skill, it asks you before it runs setup, and `--no-skills` skips this step.
+- **Runs locally:** text-to-speech, speech recognition, rendering. It needs **no API keys and no paid services**. HyperFrames' `snapshot` command would send frames to Gemini when `GEMINI_API_KEY` is set; the skill always passes `--describe false`.
 - **Sends:** nothing of its own. Your agent (e.g. Claude Code) uses your own account as usual. Compositions load GSAP from cdn.jsdelivr.net when previewed or rendered (put `gsap.min.js` in `video/assets/vendor/` to render offline). The HyperFrames CLI collects anonymous usage telemetry by default; turn it off with `npx -y hyperframes@0.8.147 telemetry disable` or `HYPERFRAMES_NO_TELEMETRY=1`.
 - **Never redistributes captures.** Source screenshots are made at build time on your machine and are git-ignored.
 

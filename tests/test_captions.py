@@ -79,9 +79,15 @@ class SceneCutLeadTests(unittest.TestCase):
         self.assertLessEqual(cues[0]['end'], self.CUT)
 
     def test_full_lead_when_the_cut_is_further_back(self):
-        cues = captions.build(self.words(65.5), [self.CUT], 42)
+        cues = captions.build(self.words(65.5), [self.CUT], 42, max_cps=0)
         q = next(c for c in cues if c['text'].startswith('What does'))
         self.assertEqual(q['start'], 65.45)
+        self.check(cues)
+        # at 21.3 chars/s the question borrows a little more lead from the pause before it, still after the cut
+        cues = captions.build(self.words(65.5), [self.CUT], 42)
+        q = next(c for c in cues if c['text'].startswith('What does'))
+        self.assertTrue(65.5 - captions.BORROW_LEAD <= q['start'] < 65.45, q)
+        self.assertLessEqual(q['cps'], 21)
         self.check(cues)
 
     def test_cue_exactly_on_the_cut(self):
@@ -100,6 +106,53 @@ class SceneCutLeadTests(unittest.TestCase):
             self.check(cues)
             with open(os.path.join(d, 'captions.vtt'), encoding='utf-8') as f:
                 self.assertIn('00:01:05.040 --> ', f.read())
+
+
+class ReliefTests(unittest.TestCase):
+    """A cue over max_cps borrows what its neighbours can spare, so a tenth or two of ASR jitter cannot fail the
+    reading-speed gate (Whisper put 'Here's what it proves,' at 22.2 chars/s; Parakeet, on the same audio, 19.6)."""
+
+    def words(self, here_start=6.25):
+        a = [w(t, 3.7 + 0.24 * i, 3.7 + 0.24 * (i + 1)) for i, t in enumerate('One of them passed a test you can check.'.split())]
+        b = [w(t, here_start + 0.245 * i, here_start + 0.245 * (i + 1)) for i, t in enumerate("Here's what it proves,".split())]
+        c = [w(t, 7.24 + 0.3 * i, 7.24 + 0.3 * (i + 1)) for i, t in enumerate('and where the evidence stops.'.split())]
+        return a + b + c
+
+    def test_jitter_is_absorbed_by_neighbours(self):
+        plain = captions.build(self.words(), [], 42, max_cps=0)  # 0: no relief
+        self.assertGreater(plain[1]['cps'], 21)
+        cues = captions.build(self.words(), [], 42, max_cps=21)
+        self.assertEqual([c['text'] for c in cues], [c['text'] for c in plain])
+        for c in cues:
+            self.assertLessEqual(c['cps'], 21, c)
+        here = cues[1]
+        self.assertGreaterEqual(here['start'], 6.25 - captions.BORROW_LEAD - 1e-9)  # at most 0.3 s before its first word
+        self.assertLess(here['start'], plain[1]['start'])
+        self.assertLessEqual(cues[0]['end'], here['start'])  # it took the pause first, the previous cue kept its time
+        self.assertEqual(cues[2]['start'], plain[2]['start'])  # the lead was enough: the next cue is untouched
+        for a, b in zip(cues, cues[1:]):
+            self.assertLessEqual(a['end'], b['start'] + 1e-9)
+
+    def test_never_across_its_own_cut_and_a_short_lag_only(self):
+        cut = 6.2  # the scene opens just before 'Here's': no lead available
+        cues = captions.build(self.words(), [cut], 42, max_cps=21)
+        here = cues[1]
+        self.assertEqual(here['start'], cut)
+        self.assertLessEqual(cues[0]['end'], cut)
+        self.assertLessEqual(cues[2]['start'], 7.24 + captions.BORROW_LAG + 1e-9)  # the next cue lags its word <= 0.1 s
+        self.assertLessEqual(here['cps'], 21.0)
+
+    def test_genuinely_fast_speech_still_fails(self):
+        fast = [w("Here's", 6.0, 6.1), w('what', 6.1, 6.2), w('it', 6.2, 6.3), w('proves,', 6.3, 6.4)] + \
+               [w(t, 6.4 + 0.1 * i, 6.5 + 0.1 * i) for i, t in enumerate('and where the evidence stops right here.'.split())]
+        cues = captions.build(fast, [], 42, max_cps=21)
+        self.assertTrue(any(c['cps'] > 21 for c in cues))
+
+    def test_no_op_without_violations(self):
+        script, transcript, timeline = example()
+        words, _ = align.align(script, transcript, timeline)
+        self.assertEqual(captions.build(words, timeline['cuts'], 42, script['display'], 21),
+                         captions.build(words, timeline['cuts'], 42, script['display'], 0))
 
 
 class DisplayMapTests(unittest.TestCase):

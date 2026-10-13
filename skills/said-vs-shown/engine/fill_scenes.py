@@ -30,7 +30,7 @@ import sys
 ENGINE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(ENGINE)
 sys.path.insert(0, ENGINE)
-from companion import disclosure_of  # noqa: E402  (one disclosure rule for the video and the page)
+from companion import disclosure_of, disclosure_parts  # noqa: E402  (one disclosure rule for the video and the page)
 TEMPLATES = os.path.join(SKILL, 'templates', 'scenes')
 KINDS = ('squeeze', 'payoff', 'one-thing', 'close')
 DEFAULT_ACCENT = '#f2c14e'
@@ -302,7 +302,10 @@ class Episode:
         if not str(self.E.get('reviewed_by') or '').strip():
             self.notes.append('no reviewed_by yet: the disclosure reads "not yet human-reviewed"; after the review '
                               '(stage 10) set reviewed_by and re-run fill_scenes.py --only close')
-        return disclosure_of(self.E)
+        for s in disclosure_parts(self.E)[1]:
+            self.notes.append(f'warning: disclosure segment {s!r} dropped: only "reviewed_by" (stage 10) may say a '
+                              f'person checked the episode; remove it from episode.json "disclosure"')
+        return disclosure_of(self.E, warn_to=None)
 
 
 # ── scene builders ───────────────────────────────────────────────────────────────────────────────

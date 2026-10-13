@@ -1,0 +1,884 @@
+[
+  {
+    "text": "Three",
+    "start": 0.47,
+    "end": 0.49,
+    "id": "w0"
+  },
+  {
+    "text": "AI",
+    "start": 0.49,
+    "end": 0.66,
+    "id": "w1"
+  },
+  {
+    "text": "developments,",
+    "start": 0.66,
+    "end": 1.97,
+    "id": "w2"
+  },
+  {
+    "text": "October",
+    "start": 2.08,
+    "end": 2.51,
+    "id": "w3"
+  },
+  {
+    "text": "5th",
+    "start": 2.63,
+    "end": 3.08,
+    "id": "w4"
+  },
+  {
+    "text": "to",
+    "start": 3.08,
+    "end": 3.19,
+    "id": "w5"
+  },
+  {
+    "text": "8th.",
+    "start": 3.31,
+    "end": 4,
+    "id": "w6"
+  },
+  {
+    "text": "One",
+    "start": 4,
+    "end": 4.17,
+    "id": "w7"
+  },
+  {
+    "text": "of",
+    "start": 4.17,
+    "end": 4.47,
+    "id": "w8"
+  },
+  {
+    "text": "them",
+    "start": 4.47,
+    "end": 4.51,
+    "id": "w9"
+  },
+  {
+    "text": "passed",
+    "start": 4.51,
+    "end": 4.8,
+    "id": "w10"
+  },
+  {
+    "text": "a",
+    "start": 4.86,
+    "end": 4.91,
+    "id": "w11"
+  },
+  {
+    "text": "test",
+    "start": 4.91,
+    "end": 5.14,
+    "id": "w12"
+  },
+  {
+    "text": "you",
+    "start": 5.14,
+    "end": 5.29,
+    "id": "w13"
+  },
+  {
+    "text": "can",
+    "start": 5.32,
+    "end": 5.48,
+    "id": "w14"
+  },
+  {
+    "text": "check.",
+    "start": 5.48,
+    "end": 5.97,
+    "id": "w15"
+  },
+  {
+    "text": "Here's",
+    "start": 6.25,
+    "end": 6.37,
+    "id": "w16"
+  },
+  {
+    "text": "what",
+    "start": 6.49,
+    "end": 6.62,
+    "id": "w17"
+  },
+  {
+    "text": "it",
+    "start": 6.62,
+    "end": 6.74,
+    "id": "w18"
+  },
+  {
+    "text": "proves,",
+    "start": 6.74,
+    "end": 7.24,
+    "id": "w19"
+  },
+  {
+    "text": "and",
+    "start": 7.24,
+    "end": 7.39,
+    "id": "w20"
+  },
+  {
+    "text": "where",
+    "start": 7.44,
+    "end": 7.74,
+    "id": "w21"
+  },
+  {
+    "text": "the",
+    "start": 7.74,
+    "end": 7.87,
+    "id": "w22"
+  },
+  {
+    "text": "evidence",
+    "start": 7.96,
+    "end": 8.44,
+    "id": "w23"
+  },
+  {
+    "text": "stops.",
+    "start": 8.44,
+    "end": 8.98,
+    "id": "w24"
+  },
+  {
+    "text": "First,",
+    "start": 9.47,
+    "end": 9.99,
+    "id": "w25"
+  },
+  {
+    "text": "math.",
+    "start": 9.99,
+    "end": 10.97,
+    "id": "w26"
+  },
+  {
+    "text": "OpenAI",
+    "start": 11.25,
+    "end": 11.37,
+    "id": "w27"
+  },
+  {
+    "text": "published",
+    "start": 11.49,
+    "end": 11.93,
+    "id": "w28"
+  },
+  {
+    "text": "manuscripts",
+    "start": 11.93,
+    "end": 12.61,
+    "id": "w29"
+  },
+  {
+    "text": "it",
+    "start": 12.61,
+    "end": 12.73,
+    "id": "w30"
+  },
+  {
+    "text": "says",
+    "start": 12.73,
+    "end": 12.97,
+    "id": "w31"
+  },
+  {
+    "text": "were",
+    "start": 13.08,
+    "end": 13.33,
+    "id": "w32"
+  },
+  {
+    "text": "produced",
+    "start": 13.33,
+    "end": 13.98,
+    "id": "w33"
+  },
+  {
+    "text": "by",
+    "start": 14.01,
+    "end": 14.1,
+    "id": "w34"
+  },
+  {
+    "text": "an",
+    "start": 14.1,
+    "end": 14.19,
+    "id": "w35"
+  },
+  {
+    "text": "internal",
+    "start": 14.19,
+    "end": 14.2,
+    "id": "w36"
+  },
+  {
+    "text": "model.",
+    "start": 14.84,
+    "end": 15,
+    "id": "w37"
+  },
+  {
+    "text": "Some",
+    "start": 15,
+    "end": 15.47,
+    "id": "w38"
+  },
+  {
+    "text": "come",
+    "start": 15.47,
+    "end": 15.48,
+    "id": "w39"
+  },
+  {
+    "text": "with",
+    "start": 15.49,
+    "end": 15.72,
+    "id": "w40"
+  },
+  {
+    "text": "proofs",
+    "start": 15.72,
+    "end": 16.08,
+    "id": "w41"
+  },
+  {
+    "text": "written",
+    "start": 16.08,
+    "end": 16.5,
+    "id": "w42"
+  },
+  {
+    "text": "in",
+    "start": 16.5,
+    "end": 16.62,
+    "id": "w43"
+  },
+  {
+    "text": "Lean,",
+    "start": 16.62,
+    "end": 16.97,
+    "id": "w44"
+  },
+  {
+    "text": "a",
+    "start": 17.07,
+    "end": 17.1,
+    "id": "w45"
+  },
+  {
+    "text": "language",
+    "start": 17.1,
+    "end": 17.92,
+    "id": "w46"
+  },
+  {
+    "text": "a",
+    "start": 17.92,
+    "end": 18.02,
+    "id": "w47"
+  },
+  {
+    "text": "computer",
+    "start": 18.02,
+    "end": 18.19,
+    "id": "w48"
+  },
+  {
+    "text": "can",
+    "start": 18.86,
+    "end": 19.15,
+    "id": "w49"
+  },
+  {
+    "text": "check.",
+    "start": 19.15,
+    "end": 20,
+    "id": "w50"
+  },
+  {
+    "text": "A",
+    "start": 20,
+    "end": 20.06,
+    "id": "w51"
+  },
+  {
+    "text": "passing",
+    "start": 20.47,
+    "end": 20.52,
+    "id": "w52"
+  },
+  {
+    "text": "check",
+    "start": 20.52,
+    "end": 20.8,
+    "id": "w53"
+  },
+  {
+    "text": "proves",
+    "start": 20.86,
+    "end": 21.24,
+    "id": "w54"
+  },
+  {
+    "text": "one",
+    "start": 21.24,
+    "end": 21.4,
+    "id": "w55"
+  },
+  {
+    "text": "thing.",
+    "start": 21.44,
+    "end": 21.97,
+    "id": "w56"
+  },
+  {
+    "text": "The",
+    "start": 22,
+    "end": 22.2,
+    "id": "w57"
+  },
+  {
+    "text": "argument",
+    "start": 22.47,
+    "end": 22.73,
+    "id": "w58"
+  },
+  {
+    "text": "establishes",
+    "start": 22.73,
+    "end": 23.46,
+    "id": "w59"
+  },
+  {
+    "text": "its",
+    "start": 23.46,
+    "end": 23.63,
+    "id": "w60"
+  },
+  {
+    "text": "exact",
+    "start": 23.67,
+    "end": 23.97,
+    "id": "w61"
+  },
+  {
+    "text": "formal",
+    "start": 24.08,
+    "end": 24.39,
+    "id": "w62"
+  },
+  {
+    "text": "statement.",
+    "start": 24.39,
+    "end": 25,
+    "id": "w63"
+  },
+  {
+    "text": "Not",
+    "start": 25,
+    "end": 25.49,
+    "id": "w64"
+  },
+  {
+    "text": "that",
+    "start": 25.49,
+    "end": 25.66,
+    "id": "w65"
+  },
+  {
+    "text": "the",
+    "start": 25.66,
+    "end": 25.94,
+    "id": "w66"
+  },
+  {
+    "text": "result",
+    "start": 25.94,
+    "end": 26.51,
+    "id": "w67"
+  },
+  {
+    "text": "is",
+    "start": 26.51,
+    "end": 26.7,
+    "id": "w68"
+  },
+  {
+    "text": "new,",
+    "start": 26.7,
+    "end": 27.08,
+    "id": "w69"
+  },
+  {
+    "text": "or",
+    "start": 27.08,
+    "end": 27.16,
+    "id": "w70"
+  },
+  {
+    "text": "that",
+    "start": 27.24,
+    "end": 27.33,
+    "id": "w71"
+  },
+  {
+    "text": "the",
+    "start": 27.33,
+    "end": 27.46,
+    "id": "w72"
+  },
+  {
+    "text": "statement",
+    "start": 27.46,
+    "end": 27.71,
+    "id": "w73"
+  },
+  {
+    "text": "matches",
+    "start": 27.87,
+    "end": 28.16,
+    "id": "w74"
+  },
+  {
+    "text": "the",
+    "start": 28.16,
+    "end": 28.19,
+    "id": "w75"
+  },
+  {
+    "text": "paper's",
+    "start": 28.3,
+    "end": 28.59,
+    "id": "w76"
+  },
+  {
+    "text": "claim.",
+    "start": 28.81,
+    "end": 29,
+    "id": "w77"
+  },
+  {
+    "text": "And",
+    "start": 29,
+    "end": 29.49,
+    "id": "w78"
+  },
+  {
+    "text": "OpenAI's",
+    "start": 29.49,
+    "end": 30.26,
+    "id": "w79"
+  },
+  {
+    "text": "repository",
+    "start": 30.26,
+    "end": 31.4,
+    "id": "w80"
+  },
+  {
+    "text": "warns",
+    "start": 31.42,
+    "end": 31.98,
+    "id": "w81"
+  },
+  {
+    "text": "that",
+    "start": 32.01,
+    "end": 32.19,
+    "id": "w82"
+  },
+  {
+    "text": "some",
+    "start": 32.19,
+    "end": 32.2,
+    "id": "w83"
+  },
+  {
+    "text": "unformalized",
+    "start": 32.41,
+    "end": 33,
+    "id": "w84"
+  },
+  {
+    "text": "results",
+    "start": 33,
+    "end": 33.99,
+    "id": "w85"
+  },
+  {
+    "text": "could",
+    "start": 33.99,
+    "end": 34.27,
+    "id": "w86"
+  },
+  {
+    "text": "have",
+    "start": 34.27,
+    "end": 34.49,
+    "id": "w87"
+  },
+  {
+    "text": "issues.",
+    "start": 34.49,
+    "end": 34.88,
+    "id": "w88"
+  },
+  {
+    "text": "One",
+    "start": 34.88,
+    "end": 35.49,
+    "id": "w89"
+  },
+  {
+    "text": "result,",
+    "start": 35.49,
+    "end": 36.21,
+    "id": "w90"
+  },
+  {
+    "text": "one",
+    "start": 36.21,
+    "end": 36.54,
+    "id": "w91"
+  },
+  {
+    "text": "kind",
+    "start": 36.54,
+    "end": 36.97,
+    "id": "w92"
+  },
+  {
+    "text": "of",
+    "start": 36.97,
+    "end": 37.16,
+    "id": "w93"
+  },
+  {
+    "text": "test.",
+    "start": 37.24,
+    "end": 37.98,
+    "id": "w94"
+  },
+  {
+    "text": "A",
+    "start": 38,
+    "end": 38.08,
+    "id": "w95"
+  },
+  {
+    "text": "math",
+    "start": 38.08,
+    "end": 38.49,
+    "id": "w96"
+  },
+  {
+    "text": "claim",
+    "start": 38.49,
+    "end": 38.8,
+    "id": "w97"
+  },
+  {
+    "text": "can",
+    "start": 38.86,
+    "end": 39.07,
+    "id": "w98"
+  },
+  {
+    "text": "be",
+    "start": 39.07,
+    "end": 39.23,
+    "id": "w99"
+  },
+  {
+    "text": "checked",
+    "start": 39.23,
+    "end": 39.81,
+    "id": "w100"
+  },
+  {
+    "text": "by",
+    "start": 39.81,
+    "end": 39.97,
+    "id": "w101"
+  },
+  {
+    "text": "a",
+    "start": 39.97,
+    "end": 40.08,
+    "id": "w102"
+  },
+  {
+    "text": "formal",
+    "start": 40.08,
+    "end": 40.51,
+    "id": "w103"
+  },
+  {
+    "text": "proof.",
+    "start": 40.63,
+    "end": 41,
+    "id": "w104"
+  },
+  {
+    "text": "Passing",
+    "start": 41,
+    "end": 41.49,
+    "id": "w105"
+  },
+  {
+    "text": "it",
+    "start": 41.49,
+    "end": 41.55,
+    "id": "w106"
+  },
+  {
+    "text": "doesn't",
+    "start": 41.55,
+    "end": 41.98,
+    "id": "w107"
+  },
+  {
+    "text": "settle",
+    "start": 41.98,
+    "end": 42.35,
+    "id": "w108"
+  },
+  {
+    "text": "whether",
+    "start": 42.35,
+    "end": 42.78,
+    "id": "w109"
+  },
+  {
+    "text": "the",
+    "start": 42.78,
+    "end": 42.87,
+    "id": "w110"
+  },
+  {
+    "text": "result",
+    "start": 42.96,
+    "end": 43.33,
+    "id": "w111"
+  },
+  {
+    "text": "matters.",
+    "start": 43.33,
+    "end": 43.98,
+    "id": "w112"
+  },
+  {
+    "text": "So",
+    "start": 44,
+    "end": 44.15,
+    "id": "w113"
+  },
+  {
+    "text": "the",
+    "start": 44.15,
+    "end": 44.49,
+    "id": "w114"
+  },
+  {
+    "text": "next",
+    "start": 44.49,
+    "end": 44.68,
+    "id": "w115"
+  },
+  {
+    "text": "time",
+    "start": 44.68,
+    "end": 44.98,
+    "id": "w116"
+  },
+  {
+    "text": "an",
+    "start": 44.98,
+    "end": 45.13,
+    "id": "w117"
+  },
+  {
+    "text": "AI",
+    "start": 45.13,
+    "end": 45.28,
+    "id": "w118"
+  },
+  {
+    "text": "claim",
+    "start": 45.28,
+    "end": 45.63,
+    "id": "w119"
+  },
+  {
+    "text": "crosses",
+    "start": 45.67,
+    "end": 46.15,
+    "id": "w120"
+  },
+  {
+    "text": "your",
+    "start": 46.24,
+    "end": 46.49,
+    "id": "w121"
+  },
+  {
+    "text": "desk,",
+    "start": 46.49,
+    "end": 46.98,
+    "id": "w122"
+  },
+  {
+    "text": "ask",
+    "start": 47.01,
+    "end": 47.19,
+    "id": "w123"
+  },
+  {
+    "text": "one",
+    "start": 47.19,
+    "end": 47.86,
+    "id": "w124"
+  },
+  {
+    "text": "question.",
+    "start": 47.86,
+    "end": 49,
+    "id": "w125"
+  },
+  {
+    "text": "Which",
+    "start": 49,
+    "end": 49.49,
+    "id": "w126"
+  },
+  {
+    "text": "test",
+    "start": 49.49,
+    "end": 49.61,
+    "id": "w127"
+  },
+  {
+    "text": "did",
+    "start": 49.61,
+    "end": 49.8,
+    "id": "w128"
+  },
+  {
+    "text": "it",
+    "start": 49.86,
+    "end": 49.94,
+    "id": "w129"
+  },
+  {
+    "text": "actually",
+    "start": 49.94,
+    "end": 50.49,
+    "id": "w130"
+  },
+  {
+    "text": "pass?",
+    "start": 50.49,
+    "end": 50.97,
+    "id": "w131"
+  },
+  {
+    "text": "That's",
+    "start": 51.42,
+    "end": 51.63,
+    "id": "w132"
+  },
+  {
+    "text": "the",
+    "start": 51.63,
+    "end": 51.94,
+    "id": "w133"
+  },
+  {
+    "text": "episode.",
+    "start": 51.94,
+    "end": 52.97,
+    "id": "w134"
+  },
+  {
+    "text": "Every",
+    "start": 53.47,
+    "end": 53.55,
+    "id": "w135"
+  },
+  {
+    "text": "source",
+    "start": 53.55,
+    "end": 54.21,
+    "id": "w136"
+  },
+  {
+    "text": "and",
+    "start": 54.21,
+    "end": 54.54,
+    "id": "w137"
+  },
+  {
+    "text": "the",
+    "start": 54.54,
+    "end": 54.86,
+    "id": "w138"
+  },
+  {
+    "text": "two",
+    "start": 54.86,
+    "end": 55.15,
+    "id": "w139"
+  },
+  {
+    "text": "other",
+    "start": 55.24,
+    "end": 55.71,
+    "id": "w140"
+  },
+  {
+    "text": "leads",
+    "start": 55.87,
+    "end": 56.19,
+    "id": "w141"
+  },
+  {
+    "text": "are",
+    "start": 56.3,
+    "end": 56.62,
+    "id": "w142"
+  },
+  {
+    "text": "on",
+    "start": 56.62,
+    "end": 56.86,
+    "id": "w143"
+  },
+  {
+    "text": "the",
+    "start": 56.86,
+    "end": 57.18,
+    "id": "w144"
+  },
+  {
+    "text": "companion",
+    "start": 57.18,
+    "end": 58.15,
+    "id": "w145"
+  },
+  {
+    "text": "page.",
+    "start": 58.19,
+    "end": 58.72,
+    "id": "w146"
+  }
+]

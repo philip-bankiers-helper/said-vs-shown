@@ -5,13 +5,19 @@ usage: align.py <script.json> <transcript.json> <timeline.json> <out words.json>
 
 Both sides are normalised to the same canonical tokens before matching, so spoken numbers and
 digits meet in the middle: "five hundred and twenty-two" / "522", "ninety-three percent" / "93%",
-"fifth" / "5th", "Nineteen" / "19". Script words that share one ASR word share its time span
-(split by character length). Runs of unmatched script words are spread across the gap between
-their matched neighbours, proportional to character length. No word ends after its line's audio
-(timeline start + dur): an ASR end deep in the following silence would hold the last caption through
-the gap or the closing hold. Prints per-line WER as JSON.
+"fifth" / "5th", "Nineteen" / "19". The whole script is aligned against the whole ASR word stream in
+one monotonic alignment (most matched tokens; ties go to the match nearest the word's expected time),
+so an ASR that puts a line's first words a second early (Whisper does) still matches them to that line.
+Each matched word keeps its line: if the line's ASR times spill out of the line's audio (timeline start
+.. start + dur), they are mapped back onto it. Script words that share one ASR word share its time span
+(split by character length). Runs of unmatched script words are spread across the gap between their
+matched neighbours inside their own line, proportional to character length.
+Guarantees: word starts never decrease; every word starts in its line's window (from 0.3 s before the
+line, never before the previous line's audio end, to the line's end) and lasts >= 0.08 s; no word ends
+after its line's audio unless that minimum needs it, and none reaches into the next line's window.
+Prints per-line stats as JSON: words, asr_words, unmatched, wer, refit (start/end shift applied, s).
 """
-import difflib
+import bisect
 import json
 import re
 import sys
@@ -154,21 +160,84 @@ def canon(words):
     return out
 
 
-def align_line(toks, seg, start, dur):
-    """Times for one script line. toks: script words; seg: ASR words [{text,start,end}] near the line."""
-    sc = canon(toks)
-    ac = canon([a['text'] for a in seg])
-    sm = difflib.SequenceMatcher(a=[t for t, _ in sc], b=[t for t, _ in ac], autojunk=False)
-    iv = [None] * len(toks)
-    for blk in sm.get_matching_blocks():
-        for m in range(blk.size):
-            (w0, w1), (a0, a1) = sc[blk.a + m][1], ac[blk.b + m][1]
-            t0, t1 = seg[a0]['start'], seg[a1]['end']
-            for w in range(w0, w1 + 1):
-                iv[w] = (t0, t1) if iv[w] is None else (min(iv[w][0], t0), max(iv[w][1], t1))
-    matched = sum(1 for x in iv if x is not None)
+LEAD = 0.3        # a line's words may start this much before its timeline start (scene cuts sit 0.36 s before it)
+REFIT = 0.45      # a line whose first matched word starts earlier than this before the line is refitted (_refit)
+MIN_DUR = 0.08    # every word lasts at least this long
+REACH = 2.5       # an ASR word this far (s) outside a line's audio can still match that line's words
+NEAR = 0.1        # tie-break weight: of equally long alignments, prefer matches near the word's expected time
+
+
+def _asr_tokens(asr):
+    """Canonical ASR tokens [(token, first_word, last_word)], numbers parsed within a sentence and a pause only."""
+    out, run_ = [], []
+
+    def flush():
+        if run_:
+            off = run_[0]
+            out.extend((tok, off + w0, off + w1) for tok, (w0, w1) in canon([asr[i]['text'] for i in run_]))
+            del run_[:]
+    for i, a in enumerate(asr):
+        if run_:
+            prev = asr[run_[-1]]
+            if prev['text'].rstrip('"”’)]').endswith(('.', '?', '!')) or a['start'] - prev['end'] > 0.3:
+                flush()
+        run_.append(i)
+    flush()
+    return out
+
+
+def _lcs(S, A):
+    """Global monotonic alignment of script tokens S [(token, lo, hi, t_expected)] with ASR tokens
+    A [(token, t)]: the most matched tokens (an ASR token matches a script token only when their text is equal and
+    the ASR time is within REACH of the script token's line), ties broken towards the expected time.
+    Returns [(script index, asr index)] in increasing order of both."""
+    n, m = len(S), len(A)
+    where = {}
+    for j, (tok, _) in enumerate(A):
+        where.setdefault(tok, []).append(j)
+    cand = []
+    for tok, lo, hi, t_exp in S:
+        c = {}
+        for j in where.get(tok, ()):
+            t = A[j][1]
+            if lo - REACH <= t <= hi + REACH:
+                c[j + 1] = 1.0 + NEAR * max(0.0, 1.0 - abs(t - t_exp) / REACH)
+        cand.append(c)
+    prev = [0.0] * (m + 1)
+    back = []
+    for i in range(n):
+        c = cand[i]
+        if not c:  # rows are non-decreasing in j, so a row without candidates is the row above
+            back.append(None)
+            continue
+        cur = prev[:]
+        bp = bytearray(m + 1)
+        for j in range(min(c), m + 1):
+            best, b = prev[j], 0
+            if cur[j - 1] > best:
+                best, b = cur[j - 1], 1
+            sc = c.get(j)
+            if sc is not None and prev[j - 1] + sc > best:
+                best, b = prev[j - 1] + sc, 2
+            cur[j], bp[j] = best, b
+        back.append(bp)
+        prev = cur
+    pairs, i, j = [], n, m
+    while i > 0 and j > 0:
+        b = back[i - 1][j] if back[i - 1] is not None else 0
+        if b == 2:
+            pairs.append((i - 1, j - 1))
+            i, j = i - 1, j - 1
+        elif b == 1:
+            j -= 1
+        else:
+            i -= 1
+    return pairs[::-1]
+
+
+def _split_shared(toks, iv):
+    """Script words that share an ASR span (e.g. "five hundred and twenty-two" -> "522") split it by length."""
     times = [None] * len(toks)
-    # script words that share an ASR span (e.g. "five hundred and twenty-two" -> "522") split it by length
     i = 0
     while i < len(toks):
         if iv[i] is None:
@@ -185,8 +254,38 @@ def align_line(toks, seg, start, dur):
             times[k] = (acc, acc + d)
             acc += d
         i = j
-    # interpolate runs of unmatched words across the gap between their matched neighbours,
-    # proportional to character length
+    return times
+
+
+def _refit(toks, iv, start, end):
+    """Map the line's matched ASR times onto its audio when they spill out of it. Whisper can put a line's first
+    words up to ~1 s before the line starts and its last ones well after the line's audio ends; the words in between
+    drift with them. The first matched start goes to the line start when it is more than REFIT before it (Parakeet
+    starts lines up to ~0.3 s early, which the clamp to `lo` handles); the last matched start, when it is at or
+    after the line's end, goes to where the last words must begin to fit (by character length); everything in
+    between is mapped linearly."""
+    got = [k for k, x in enumerate(iv) if x is not None]
+    if not got:
+        return iv, (0.0, 0.0)
+    k0, k1 = got[0], got[-1]
+    a0, a1 = iv[k0][0], iv[k1][0]
+    chars = float(sum(len(t) + 1 for t in toks))
+    tail = max(MIN_DUR, (end - start) * sum(len(t) + 1 for t in toks[k1:]) / chars)  # time the last words need
+    b0 = a0 if a0 >= start - REFIT else start
+    b1 = a1 if a1 < end else max(b0, end - tail)
+    if (b0, b1) == (a0, a1):
+        return iv, (0.0, 0.0)
+    if a1 - a0 > 0.05 and b1 - b0 > 0.05:
+        f = lambda t: b0 + (t - a0) * (b1 - b0) / (a1 - a0)  # noqa: E731
+    else:  # one word, or a span that cannot be mapped: shift it
+        d = (b0 - a0) if b0 != a0 else (b1 - a1)
+        f = lambda t: t + d  # noqa: E731
+    return [None if x is None else (f(x[0]), f(x[1])) for x in iv], (round(b0 - a0, 3), round(b1 - a1, 3))
+
+
+def _fill(toks, times, start, end):
+    """Spread runs of unmatched words across the gap between their matched neighbours in the line (or the line's
+    start / end), proportional to character length."""
     i = 0
     while i < len(toks):
         if times[i] is not None:
@@ -196,8 +295,8 @@ def align_line(toks, seg, start, dur):
         while j < len(toks) and times[j] is None:
             j += 1
         g0 = times[i - 1][1] if i > 0 else start
-        g1 = times[j][0] if j < len(toks) else start + dur
-        g1 = max(g1, g0 + 0.08 * (j - i))
+        g1 = times[j][0] if j < len(toks) else end
+        g1 = max(g1, g0 + MIN_DUR * (j - i))
         lens = [len(t) + 1 for t in toks[i:j]]
         tot, acc = float(sum(lens)), g0
         for k in range(i, j):
@@ -205,28 +304,93 @@ def align_line(toks, seg, start, dur):
             times[k] = (acc, acc + d)
             acc += d
         i = j
-    return times, matched
+    return times
 
 
 def align(script, transcript, timeline):
+    """(words, report): the script's words with times, and per-line match stats.
+
+    1. One global, monotonic alignment of the whole script against the whole ASR word stream (canonical tokens,
+       so spoken numbers meet digits). No per-line search window: a word the ASR put early or late still matches.
+    2. Each matched word belongs to its script line. If the line's matched ASR times spill out of the line's audio,
+       they are mapped back onto it (`_refit`).
+    3. Unmatched runs are interpolated inside their line only.
+    4. Guarantees, per line [lo = start - LEAD (never before the previous line's audio end), end = start + dur]:
+       lo <= word start, starts never decrease, word end >= start + MIN_DUR, end <= the line's end unless the
+       minimum length needs more, and no word reaches the next line's lo."""
     asr = transcript if isinstance(transcript, list) else transcript.get('words', [])
-    asr = [a for a in asr if canon([a['text']])]
+    asr = sorted((a for a in asr if canon([a['text']])), key=lambda a: a['start'])
     s_lines, t_lines = script['lines'], timeline['lines']
     if [L['id'] for L in s_lines] != [T['id'] for T in t_lines]:
         raise SystemExit('align.py: script.json and timeline.json list different lines; re-run voice.py')
-    words, report = [], []
+    lines = []
+    prev_end = 0.0
     for L, T in zip(s_lines, t_lines):
-        toks = L['text'].split()
-        lo, hi = T['start'] - 0.6, T['start'] + T['dur'] + 0.3
-        seg = [a for a in asr if lo <= a['start'] <= hi]
-        times, matched = align_line(toks, seg, T['start'], T['dur'])
+        start, end = float(T['start']), float(T['start']) + float(T['dur'])
+        lines.append({'id': L['id'], 'toks': L['text'].split(), 'start': start, 'end': end,
+                      'lo': min(start, max(start - LEAD, prev_end, 0.0))})
+        prev_end = end
+
+    # 1. global alignment on canonical tokens
+    S, owner = [], []  # owner: (line index, first word, last word) per script token
+    for li, ln in enumerate(lines):
+        toks = ln['toks']
+        chars = float(sum(len(t) + 1 for t in toks)) or 1.0
+        offs, acc = [], 0
+        for t in toks:
+            offs.append(acc)
+            acc += len(t) + 1
+        for tok, (w0, w1) in canon(toks):
+            S.append((tok, ln['start'], ln['end'], ln['start'] + (ln['end'] - ln['start']) * offs[w0] / chars))
+            owner.append((li, w0, w1))
+    At = _asr_tokens(asr)
+    pairs = _lcs(S, [(tok, asr[a0]['start']) for tok, a0, _ in At])
+
+    ivs = [[None] * len(ln['toks']) for ln in lines]
+    asr_line = [None] * len(asr)
+    for si, aj in pairs:
+        li, w0, w1 = owner[si]
+        _, a0, a1 = At[aj]
+        t0, t1 = asr[a0]['start'], asr[a1]['end']
+        for w in range(w0, w1 + 1):
+            x = ivs[li][w]
+            ivs[li][w] = (t0, t1) if x is None else (min(x[0], t0), max(x[1], t1))
+        for a in range(a0, a1 + 1):
+            asr_line[a] = li
+
+    # ASR words no script word matched belong to the line of their matched neighbours (or the nearer one)
+    known = [k for k, li in enumerate(asr_line) if li is not None]
+    for k in range(len(asr)):
+        if asr_line[k] is not None or not known:
+            continue
+        b = bisect.bisect(known, k)
+        cands = [asr_line[known[x]] for x in (b - 1, b) if 0 <= x < len(known)]
+        t = asr[k]['start']
+        asr_line[k] = min(cands, key=lambda li: max(0.0, lines[li]['lo'] - t, t - lines[li]['end']))
+
+    words, report = [], []
+    for li, ln in enumerate(lines):
+        toks, start, end, lo = ln['toks'], ln['start'], ln['end'], ln['lo']
+        nxt = lines[li + 1]['lo'] if li + 1 < len(lines) else float('inf')
+        iv = ivs[li]
+        matched = sum(1 for x in iv if x is not None)
+        # 2. refit spill, then clamp into the line's window; a word whose ASR span lies wholly outside is re-spread
+        iv, shift = _refit(toks, iv, start, end)
+        iv = [None if x is None or x[1] <= lo or x[0] >= end else (max(x[0], lo), min(x[1], end)) for x in iv]
+        times = _split_shared(toks, iv)
+        # 3. unmatched runs, inside the line only
+        times = _fill(toks, times, start, end)
+        # 4. guarantees
+        s_max = min(end, nxt - MIN_DUR)
+        last = lo
+        for k, (s, e) in enumerate(times):
+            s = round(min(max(s, lo, last), s_max), 3)
+            last = s
+            e = round(min(max(min(e, end), s + MIN_DUR), nxt), 3)
+            words.append({'id': 'w%d' % len(words), 'line': ln['id'], 'text': toks[k], 'start': s, 'end': e})
         errs = len(toks) - matched
-        report.append({'line': L['id'], 'words': len(toks), 'asr_words': len(seg), 'unmatched': errs,
-                       'wer': round(errs / max(1, len(toks)), 3)})
-        line_end = T['start'] + T['dur']
-        for t, (s, e) in zip(toks, times):
-            words.append({'id': 'w%d' % len(words), 'line': L['id'], 'text': t,
-                          'start': round(s, 3), 'end': round(max(min(e, line_end), s + 0.08), 3)})
+        report.append({'line': ln['id'], 'words': len(toks), 'asr_words': sum(1 for x in asr_line if x == li),
+                       'unmatched': errs, 'wer': round(errs / max(1, len(toks)), 3), 'refit': list(shift)})
     return words, report
 
 

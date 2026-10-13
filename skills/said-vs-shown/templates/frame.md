@@ -70,7 +70,7 @@ Glyph CSS: 13–15px square, 2px `--paper` border; CHECKED filled `--paper`; COM
   4. the disclosure line (format below), wrapped, in `--ink`;
   5. footer, only when `credit` is true: `MADE WITH SAID VS. SHOWN`, centered, `--receipt-ink-2`.
   Left of the receipt: the sign-off (Newsreader 500, 64px), the companion-page call to action (mono 24px, accent) and the badge key. The card then holds still for reading (about 7 s of silence).
-- **Disclosure line format:** `AI-produced · AI voice · every claim sourced · reviewed by <Name>`. Segments are joined by ` · `. The tools write the last segment from `episode.json` → `reviewed_by`: `reviewed by <Name>` only when a named person actually reviewed the episode, `not yet human-reviewed` until then; review wording typed into `disclosure` is dropped. Never shorten it to a logo or an icon. The same line goes on the companion page and in the video description.
+- **Disclosure line format:** `AI-produced · AI voice · every claim sourced · reviewed by <Name>`. Segments are joined by ` · `. The tools write the last segment from `episode.json` → `reviewed_by`: `reviewed by <Name>` only when a named person actually reviewed the episode, `not yet human-reviewed` until then; wording typed into `disclosure` that claims a person reviewed, checked, approved, verified or edited the episode is dropped with a warning. Never shorten it to a logo or an icon. The same line goes on the companion page and in the video description.
 - **Credit:** `episode.json` → `credit: true` prints the `MADE WITH SAID VS. SHOWN` footer on the receipt. It is the only place the tool is credited inside the picture.
 
 ## Layout

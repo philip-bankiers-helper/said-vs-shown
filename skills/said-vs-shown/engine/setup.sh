@@ -2,23 +2,27 @@
 # setup.sh — install what the Said vs. Shown engine needs. Idempotent; macOS and Linux
 # (Windows: run it under WSL or Git Bash).
 #
-# usage: setup.sh [--dry-run] [--with-parakeet] [--no-telemetry]
+# usage: setup.sh [--dry-run] [--no-skills] [--with-parakeet] [--no-telemetry]
 #
 #   --dry-run         print every step, its command and its disk use; change nothing
+#   --no-skills       leave the user's global agent skill folders alone: skip the HyperFrames agent
+#                     skills install. Agents then read HyperFrames docs through the pinned CLI
+#                     (npx -y hyperframes@<config.json version> docs <topic>); doctor reports WARN, not FAIL
 #   --with-parakeet   also install the Parakeet ASR model (~640 MB). Without it, transcription
 #                     uses Whisper small.en, which HyperFrames fetches on first use (~470 MB)
-#   --no-telemetry    run `hyperframes telemetry disable` (a global HyperFrames setting). Without
-#                     it the telemetry status is printed and left alone
+#   --no-telemetry    run `npx -y hyperframes@<config.json version> telemetry disable` (a global
+#                     HyperFrames setting). Without it the telemetry status is printed and left alone
 #
 # Everything except the HyperFrames agent skills goes under $SVS_HOME (default: "home" in config.json,
 # ~/.said-vs-shown). Keep that path short: espeak (inside Kokoro) breaks on data paths over ~160 characters.
 #   $SVS_HOME/node     puppeteer-core + @puppeteer/browsers, pinned in engine/package.json
 #   $SVS_HOME/kokoro   Python 3.12 venv with kokoro-onnx + soundfile (skipped if $HYPERFRAMES_PYTHON already has them)
 #   $SVS_HOME/chrome   chrome-headless-shell, only when no usable Chrome exists
-# Through npx hyperframes@<config.json version>: `skills update`, which installs or overwrites the HyperFrames
-# agent skills (latest from GitHub) in ~/.claude/skills and ~/.agents/skills and links them into the skill
-# folders of other agents it finds (~/.cursor, ~/.gemini, ~/.config/opencode, ~/.codeium/windsurf); and the
-# optional steps above. Without a terminal its output goes to $SVS_HOME/skills-update.log.
+# Through npx hyperframes@<config.json version>: `skills update` (unless --no-skills), which installs or
+# overwrites the HyperFrames agent skills (latest from GitHub) in ~/.claude/skills and ~/.agents/skills and links
+# them into the skill folders of other agents it finds (~/.cursor, ~/.gemini, ~/.config/opencode,
+# ~/.codeium/windsurf); and the optional steps above. Without a terminal its output goes to
+# $SVS_HOME/skills-update.log.
 # Next step afterwards: node <this folder>/doctor.mjs
 set -eu
 
@@ -26,9 +30,11 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 DRY=0
 PARAKEET=0
 NOTEL=0
+SKILLS=1
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
+    --no-skills) SKILLS=0 ;;
     --with-parakeet) PARAKEET=1 ;;
     --no-telemetry) NOTEL=1 ;;
     -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
@@ -93,8 +99,12 @@ say "  ~150 MB   $KOKORO (Python 3.12 venv; uv may also fetch a Python 3.12 buil
 say "  ~340 MB   Kokoro model + voices, fetched by HyperFrames into ~/.cache/hyperframes on the first TTS"
 say "  ~120 MB   HyperFrames CLI in the npm/npx cache (+ ~390 MB of its own Chrome on the first capture/render)"
 say "  ~200 MB   $SVS_HOME/chrome, only if no usable Chrome is found"
-say "   ~11 MB   HyperFrames agent skills (latest from GitHub) -> ~/.claude/skills and ~/.agents/skills, linked into"
-say "            ~/.cursor, ~/.gemini, ~/.config/opencode, ~/.codeium/windsurf skill folders when those agents exist"
+if [ "$SKILLS" = 1 ]; then
+  say "   ~11 MB   HyperFrames agent skills (latest from GitHub) -> ~/.claude/skills and ~/.agents/skills, linked into"
+  say "            ~/.cursor, ~/.gemini, ~/.config/opencode, ~/.codeium/windsurf skill folders when those agents exist"
+else
+  say "     0 MB   HyperFrames agent skills: not installed (--no-skills); global agent skill folders are left alone"
+fi
 if [ "$PARAKEET" = 1 ]; then
   say "  ~640 MB   Parakeet ASR model (--with-parakeet), in ~/.cache/hyperframes"
 else
@@ -134,10 +144,15 @@ else
 fi
 
 # --- 3. HyperFrames skills --------------------------------------------------------------------
-step "3/6 HyperFrames agent skills (npx $HF skills update)"
-if [ -t 1 ] || [ "$DRY" = 1 ]; then
+if [ "$SKILLS" = 0 ]; then
+  step "3/6 HyperFrames agent skills"
+  say "   skipped (--no-skills): your global agent skill folders are unchanged. Agents read HyperFrames docs with"
+  say "   npx -y $HF docs <topic>   (topics: compositions, data-attributes, gsap, rendering, examples, troubleshooting)"
+elif [ -t 1 ] || [ "$DRY" = 1 ]; then
+  step "3/6 HyperFrames agent skills (npx -y $HF skills update)"
   run npx -y "$HF" skills update < /dev/null
 else
+  step "3/6 HyperFrames agent skills (npx -y $HF skills update)"
   # no terminal (e.g. an agent ran this): keep the CLI's spinner frames out of the output
   LOG="$SVS_HOME/skills-update.log"
   mkdir -p "$SVS_HOME"

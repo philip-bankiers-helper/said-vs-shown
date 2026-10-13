@@ -1,0 +1,74 @@
+{
+ "lead_in": 0.35,
+ "lines": [
+  {
+   "id": "L1-squeeze",
+   "scene": "squeeze",
+   "start": 0.35,
+   "dur": 8.384,
+   "words": 25,
+   "wpm": 179
+  },
+  {
+   "id": "L2-receipt",
+   "scene": "math-receipt",
+   "start": 9.434,
+   "dur": 9.92,
+   "words": 26,
+   "wpm": 157
+  },
+  {
+   "id": "L3-boundary",
+   "scene": "math-boundary",
+   "start": 20.054,
+   "dur": 14.997,
+   "words": 38,
+   "wpm": 152
+  },
+  {
+   "id": "L4-payoff",
+   "scene": "payoff",
+   "start": 35.951,
+   "dur": 8.085,
+   "words": 24,
+   "wpm": 178
+  },
+  {
+   "id": "L5-onething",
+   "scene": "one-thing",
+   "start": 44.836,
+   "dur": 6.315,
+   "words": 19,
+   "wpm": 181
+  },
+  {
+   "id": "L6-close",
+   "scene": "close",
+   "start": 51.951,
+   "dur": 5.013,
+   "words": 15,
+   "wpm": 180
+  }
+ ],
+ "cuts": [
+  9.07,
+  19.69,
+  35.59,
+  44.48,
+  51.59
+ ],
+ "scenes": [
+  "squeeze",
+  "math-receipt",
+  "math-boundary",
+  "payoff",
+  "one-thing",
+  "close"
+ ],
+ "total": 63.964,
+ "tts": {
+  "model": "kokoro-82m",
+  "voice": "af_heart",
+  "hyperframes": "0.8.147"
+ }
+}

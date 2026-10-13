@@ -1,0 +1,72 @@
+{
+ "voice": "af_heart",
+ "speed": 1.06,
+ "display": {
+  "Three AI": "3 AI",
+  "October fifth to eighth": "October 5 to 8",
+  "two other leads": "2 other leads"
+ },
+ "lines": [
+  {
+   "id": "L1-squeeze",
+   "scene": "squeeze",
+   "gap_after": 0.7,
+   "speed": 0.95,
+   "text": "Three AI developments, October fifth to eighth. One of them passed a test you can check. Here's what it proves, and where the evidence stops.",
+   "claims": [
+    "brief:leads",
+    "editorial"
+   ]
+  },
+  {
+   "id": "L2-receipt",
+   "scene": "math-receipt",
+   "gap_after": 0.7,
+   "text": "First, math. OpenAI published manuscripts it says were produced by an internal model. Some come with proofs written in Lean, a language a computer can check.",
+   "claims": [
+    "story1:c01(fixed: attributed)",
+    "story1:c02",
+    "story1:c03"
+   ]
+  },
+  {
+   "id": "L3-boundary",
+   "scene": "math-boundary",
+   "gap_after": 0.9,
+   "text": "A passing check proves one thing: the argument establishes its exact formal statement. Not that the result is new, or that the statement matches the paper's claim. And OpenAI's repository warns that some unformalized results could have issues.",
+   "claims": [
+    "brief:story1-meaning",
+    "story1:c04"
+   ],
+   "speed": 1.16
+  },
+  {
+   "id": "L4-payoff",
+   "scene": "payoff",
+   "gap_after": 0.8,
+   "speed": 0.92,
+   "text": "One result, one kind of test. A math claim can be checked by a formal proof. Passing it doesn't settle whether the result matters.",
+   "claims": [
+    "editorial"
+   ]
+  },
+  {
+   "id": "L5-onething",
+   "scene": "one-thing",
+   "gap_after": 0.8,
+   "speed": 0.94,
+   "text": "So the next time an AI claim crosses your desk, ask one question: which test did it actually pass?",
+   "claims": [
+    "editorial"
+   ]
+  },
+  {
+   "id": "L6-close",
+   "scene": "close",
+   "gap_after": 7.0,
+   "speed": 0.97,
+   "text": "That's the episode. Every source, and the two other leads, are on the companion page.",
+   "claims": []
+  }
+ ]
+}

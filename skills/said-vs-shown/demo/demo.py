@@ -6,13 +6,15 @@ usage: python3 demo.py <url> "<verbatim sentence on that page>" [--out DIR] [--v
 
 Makes a ~20–30 s 1920x1080 receipt clip, <out>/demo.mp4 (default out: ./said-vs-shown-demo):
   1. capture  engine/receipt.mjs captures the page at 2x and locates the sentence (its line rects)
-  2. voice    Kokoro (npx hyperframes tts): "Here's the sentence, on the page it came from." + the sentence,
-              read verbatim + where and when it was captured. Word timings are approximated from each
-              line's audio (speech bounds from ffmpeg silencedetect, then spread by characters); no ASR.
+  2. voice    Kokoro (npx -y hyperframes@<config.json version> tts): "Here's the sentence, on the page it came
+              from." + the sentence, read verbatim + where and when it was captured. Word timings are
+              approximated from each line's audio (speech bounds from ffmpeg silencedetect, then spread by
+              characters); no ASR.
   3. compose  a one-scene HyperFrames project from templates/scenes/receipt.html: wordmark kicker, domain +
               capture-date chip, push-in, the highlighter synced to the read sentence, burned-in captions,
               then a 2 s end card with the install line
-  4. render   npx hyperframes render -q draft -w 2 (--quality looks for sharper page text)
+  4. render   npx -y hyperframes@<config.json version> render -q draft -w 2 (--quality looks: sharper page
+              text)
 Prints the wall time of each step. Exit 1 if the sentence is not on the page (with the closest sentence that
 is), 2 if a dependency is missing (run <skill>/engine/setup.sh).
 Kokoro: $HYPERFRAMES_PYTHON if set, else $SVS_HOME/kokoro (SVS_HOME defaults to "home" in engine/config.json).

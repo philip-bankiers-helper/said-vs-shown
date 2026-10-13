@@ -1,5 +1,6 @@
-"""Docs and templates: the episode project template pins HyperFrames to engine/config.json, every documented
-snapshot command opts out of Gemini, stage 0 asks before setup, stage 10 stops the preview, and the receipt
+"""Docs and templates: every HyperFrames command in a shipped file (docs, docstrings, usage strings, the episode
+project template) is pinned to engine/config.json, every documented snapshot command opts out of Gemini, stage 0
+asks before setup and has a decline path for the global skills, stage 10 stops the preview, and the receipt
 template keeps its flash-safe pull-back. Offline, text only (plus demo.fill_template, which needs no tools)."""
 import os
 import re
@@ -51,6 +52,67 @@ def stage(text, n):
     return m.group(0) if m else ''
 
 
+# A HyperFrames command is written runnable and pinned: `npx -y hyperframes@<the config.json version, or a
+# placeholder for it> <command>`. Checked in every shipped text file, prose, docstrings and usage strings included.
+HF_SUBCOMMANDS = ('render|preview|check|snapshot|tts|transcribe|capture|docs|skills|models|lint|telemetry|init|add|'
+                  'catalog|play|present|compositions|doctor|info|upgrade|benchmark|publish|keyframes|beats|browser|'
+                  'validate|inspect|layout|timeline|remove-background')
+PIN_RULES = (
+    ('npx without a version', re.compile(r'\bnpx(?:\s+(?:-y|--yes))?\s+hyperframes(?!@)')),
+    # a literal version or tag must be the config one; placeholders (<ver>, {hf}, %s, $HF_VER, ...) are fine
+    ('version other than config.json\'s', re.compile(
+        r'hyperframes@(?=[0-9A-Za-z])(?!' + re.escape(HF) + r'(?![0-9A-Za-z.]*[0-9A-Za-z]))')),
+    ('bare CLI command', re.compile(r'(?<![\w@/.$-])hyperframes\s+(?:' + HF_SUBCOMMANDS + r')\b')),
+)
+TEXT_EXT = ('.md', '.py', '.mjs', '.js', '.sh', '.swift', '.html', '.json', '.yaml', '.yml', '.txt', '.css')
+
+
+def shipped_text_files():
+    """Every Markdown file in the repo and every text file of the skill and the plugin manifests; not the tests'
+    code or fixtures (they hold deliberate fakes such as `hyperframes@x`)."""
+    out = []
+    for d, dirs, files in os.walk(ROOT):
+        dirs[:] = [x for x in dirs if x not in ('.git', 'node_modules', '__pycache__')]
+        rel = os.path.relpath(d, ROOT).replace(os.sep, '/')
+        if rel == 'tests/fixtures' or rel.startswith('tests/fixtures/'):
+            continue
+        in_skill = rel == 'skills' or rel.startswith('skills/') or rel.startswith('.claude-plugin')
+        out += [os.path.join(d, f) for f in files if f.endswith('.md') or (in_skill and f.endswith(TEXT_EXT))]
+    return sorted(out)
+
+
+def pin_violations(text):
+    return [(n, why, line.strip()) for n, line in enumerate(text.splitlines(), 1)
+            for why, pat in PIN_RULES if pat.search(line)]
+
+
+class PinTests(unittest.TestCase):
+    def test_every_shipped_file_pins_hyperframes_to_config(self):
+        files = shipped_text_files()
+        names = {os.path.relpath(f, ROOT).replace(os.sep, '/') for f in files}
+        for must in ('README.md', 'THIRD_PARTY.md', 'tests/README.md', 'skills/said-vs-shown/SKILL.md',
+                     'skills/said-vs-shown/demo/demo.py', 'skills/said-vs-shown/demo/README.md',
+                     'skills/said-vs-shown/engine/setup.sh', 'skills/said-vs-shown/engine/voice.py',
+                     'skills/said-vs-shown/workflows/scenes.js', 'skills/said-vs-shown/templates/project/AGENTS.md',
+                     'skills/said-vs-shown/references/scenes.md'):
+            self.assertIn(must, names)
+        self.assertFalse(any(n.startswith('tests/fixtures/') for n in names))
+        bad = ['%s:%d %s: %s' % (os.path.relpath(f, ROOT), n, why, line)
+               for f in files for n, why, line in pin_violations(read(f))]
+        self.assertEqual(bad, [])
+
+    def test_the_rules_catch_what_they_should(self):
+        for text in ('npx hyperframes telemetry disable', 'Kokoro (npx hyperframes tts)', 'npx -y hyperframes render',
+                     'npx --yes hyperframes preview', 'npx -y hyperframes@latest render', 'hyperframes@0.8.146 check',
+                     'npx -y hyperframes@%s1 check' % HF, 'run `hyperframes check --strict`', 'hyperframes snapshot'):
+            self.assertTrue(pin_violations(text), text)
+        for text in ('npx -y hyperframes@%s telemetry disable' % HF, 'npx -y hyperframes@<ver> docs <topic>',
+                     'npx hyperframes@<version> skills update', "['npx', '-y', f'hyperframes@{cfg[\"hf\"]}', 'tts']",
+                     'HF="hyperframes@$HF_VER"', "'hyperframes@%s' % cfg['hyperframes']", 'HyperFrames\' `snapshot` command',
+                     'npx -y hyperframes@%s.' % HF, 'github.com/heygen-com/hyperframes'):
+            self.assertEqual(pin_violations(text), [], text)
+
+
 class ProjectTemplateTests(unittest.TestCase):
     def test_every_hyperframes_command_is_pinned_to_config(self):
         # new_episode.py re-pins package.json at intake, but AGENTS.md is copied as is
@@ -91,6 +153,18 @@ class DocumentedCommandTests(unittest.TestCase):
         self.assertRegex(s0, r'(?i)ask the user before running it')
         for changed in ('~/.claude/skills', '~/.agents/skills', '1.7 GB'):
             self.assertIn(changed, s0)
+
+    def test_stage0_has_a_decline_path_for_the_global_skills(self):
+        text = read(os.path.join(SKILL, 'SKILL.md'))
+        s0 = stage(text, 0)
+        self.assertIn('setup.sh --no-skills', s0)
+        self.assertRegex(s0, r'`hf skills` line as WARN, not FAIL')
+        self.assertIn('npx -y hyperframes@<ver> docs <topic>', s0)
+        self.assertNotRegex(s0, r'(?i)doctor fails while the core HyperFrames skills are missing')
+        hf = text[text.index('## HyperFrames knowledge'):]
+        self.assertIn('--no-skills', hf)
+        self.assertIn('agents can read HyperFrames docs via `npx -y hyperframes@<ver> docs <topic>`', hf)
+        self.assertNotIn('line fails', hf)
 
     def test_stage10_stops_preview_and_derives_disclosure(self):
         s10 = stage(read(os.path.join(SKILL, 'SKILL.md')), 10)
