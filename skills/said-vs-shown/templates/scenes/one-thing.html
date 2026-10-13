@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<!--
+  one-thing.html — the take-away: a quiet lead line ("Next time an AI claim crosses your desk —"), a
+  nudge up, then the question in two display lines with an accent highlighter under its key phrase.
+
+  Template placeholders (replaced by engine/fill_scenes.py, or by hand):
+    __SCENE_ID__  the scene id from video/scenes.json;  __P__  a short id prefix with its dash, e.g. "ot-"
+  Every per-episode value lives in the CFG block (source: episode.json → one_thing, one_thing_highlight).
+  Colors are AI amber; fill_scenes.py swaps the accent. Times are LOCAL seconds (audio/scene-words.json).
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: "Newsreader"; font-weight: 300; src: url("assets/fonts/newsreader-latin-300-normal.woff2") format("woff2"); }
+        @font-face { font-family: "Newsreader"; font-weight: 700; src: url("assets/fonts/newsreader-latin-700-normal.woff2") format("woff2"); }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        [data-composition-id="__SCENE_ID__"]#root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          color: #eee8dc;
+          font-family: "Newsreader", serif;
+        }
+        [data-composition-id="__SCENE_ID__"] .ot-mono { font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+        /* meta plate: same geometry as the series kicker; persists across the closing hard cuts */
+        [data-composition-id="__SCENE_ID__"] #__P__plate {
+          position: absolute; left: 104px; top: 44px; padding: 10px 16px; border-radius: 8px;
+          background: rgba(20, 19, 15, 0.94);
+          font-size: 22px; color: #a59d8d; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__plate b { color: #f2c14e; font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] #__P__lead { position: absolute; left: 120px; top: 300px; width: 1680px; }
+        [data-composition-id="__SCENE_ID__"] #__P__kicker { display: inline-block; font-size: 26px; font-weight: 600; color: #f2c14e; white-space: nowrap; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__quiet {
+          margin-top: 24px; font-size: 40px; font-weight: 300; line-height: 1.2; letter-spacing: -0.01em;
+          color: #a59d8d; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__quiet span { display: inline-block; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__quiet span + span { margin-left: 0.26em; }
+        [data-composition-id="__SCENE_ID__"] #__P__stmt {
+          position: absolute; left: 120px; top: 468px; font-size: 84px; font-weight: 300;
+          line-height: 1.08; letter-spacing: -0.03em; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] .ot-line { display: block; width: max-content; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__l2 { font-weight: 700; }
+        [data-composition-id="__SCENE_ID__"] .ot-mark { position: relative; display: inline-block; }
+        [data-composition-id="__SCENE_ID__"] .ot-mark .ot-txt { position: relative; z-index: 1; }
+        /* css-marker-patterns highlight: accent bar behind the words (no multiply on a dark ground) */
+        [data-composition-id="__SCENE_ID__"] #__P__hl {
+          position: absolute; left: -10px; right: -12px; top: 30%; bottom: 12%; z-index: 0;
+          background: rgba(242, 193, 78, 0.42); border-radius: 4px; transform-origin: left center;
+        }
+      </style>
+
+      <div id="root" data-composition-id="__SCENE_ID__" data-width="1920" data-height="1080">
+        <div id="__P__plate" class="ot-mono"></div>
+        <div id="__P__lead">
+          <div id="__P__kicker" class="ot-mono"></div>
+          <div id="__P__quiet"></div>
+        </div>
+        <div id="__P__stmt">
+          <span id="__P__l1" class="ot-line"></span>
+          <span id="__P__l2" class="ot-line"><span class="ot-mark"><span id="__P__hl"></span><span id="__P__mark" class="ot-txt"></span></span></span>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          // ==== CFG: every per-episode value (engine/fill_scenes.py rewrites this block) ====
+          const CFG = {
+            meta: { show: "Said vs. Shown", edition: "AI", window: "Oct 5–8, 2026" },
+            kicker: "One thing for your week",
+            // the quiet lead line, in phrase fragments; each arrives as it is said
+            quiet: [
+              { text: "Next time", at: 0.6 },
+              { text: "an AI claim", at: 1.12 },
+              { text: "crosses your desk —", at: 2.2 }
+            ],
+            // the question: line 1, then line 2 = mark (highlighted) + tail
+            line1: "Which test did it",
+            mark: "actually pass?",
+            tail: "",
+            beats: {
+              kicker: 0.14,        // first word
+              nudge: 3.36,         // the lead block moves up to make room ("ask one question:")
+              line1: 4.68,         // the question starts
+              line2: 5.8,          // the marked phrase starts
+              highlight: 5.86,     // highlighter sweep start …
+              highlight_dur: 1.05  // … and length (≈ 0.77 × the marked words' span)
+            }
+          };
+          // ==== /CFG ====
+
+          const P = "__P__";
+          const $ = function (id) { return document.getElementById(P + id); };
+          const el = function (tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+          };
+
+          const plate = $("plate");
+          plate.appendChild(el("b", null, CFG.meta.show));
+          plate.appendChild(document.createTextNode([""].concat([CFG.meta.edition, CFG.meta.window].filter(Boolean)).join(" · ")));
+          $("kicker").textContent = CFG.kicker;
+          CFG.quiet.forEach(function (q, i) {
+            const s = el("span", null, q.text);
+            s.id = P + "q" + i;
+            $("quiet").appendChild(s);
+          });
+          $("l1").textContent = CFG.line1;
+          $("mark").textContent = CFG.mark;
+          if (CFG.tail) $("l2").appendChild(document.createTextNode(CFG.tail));
+
+          const tl = gsap.timeline({ paused: true });
+          const B = CFG.beats;
+          // waterfall-entry: binary opacity via tl.set + y offset, then whip to rest on power4.out.
+          function arrive(sel, t, dy, dur) {
+            tl.set(sel, { opacity: 1, y: dy }, t);
+            tl.to(sel, { y: 0, duration: dur, ease: "power4.out" }, t);
+          }
+
+          // The lead block opens 96px lower (closer to optical centre), then makes room for the statement.
+          tl.fromTo("#" + P + "lead", { y: 96 }, { y: 96, duration: 0.01, immediateRender: true }, 0);
+          arrive("#" + P + "kicker", B.kicker, 40, 0.16);
+          CFG.quiet.forEach(function (q, i) { arrive("#" + P + "q" + i, q.at, 50, 0.16); });
+
+          // nudge-curve: 96px up, ramp 10% / burst 65% / tail 25%, tail ≥3× ramp-in.
+          tl.to("#" + P + "lead", { y: 86, duration: 0.12, ease: "power3.in" }, B.nudge);
+          tl.to("#" + P + "lead", { y: 24, duration: 0.10, ease: "none" }, B.nudge + 0.12);
+          tl.to("#" + P + "lead", { y: 0, duration: 0.40, ease: "power4.out" }, B.nudge + 0.22);
+
+          // the question, waterfall by line; the highlighter sweeps left→right while the marked phrase is said.
+          arrive("#" + P + "l1", B.line1, 80, 0.2);
+          arrive("#" + P + "l2", B.line2, 80, 0.2);
+          tl.fromTo("#" + P + "hl", { scaleX: 0 }, { scaleX: 1, duration: B.highlight_dur, ease: "power1.inOut" }, B.highlight);
+
+          window.__timelines["__SCENE_ID__"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

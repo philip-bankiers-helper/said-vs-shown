@@ -1,0 +1,13 @@
+# Edition: AI — "what this week's AI claims say vs. what the sources show"
+id: ai
+label: "AI"
+audience: "AI-literate builders: PMs, founders and engineers who use AI at work, not researchers"
+length: { target_s: 180, min_s: 120, max_s: 240 }
+stories: { max: 3, mode: themed }         # themed = one thesis across stories (payoff matrix); roundup = ranked + stop-safe board
+voice: { engine: kokoro, id: af_heart, speed: 1.06 }
+audio: { music: none, sfx: structural-only }
+design: { accent: "#F2C14E" }             # only the accent changes per edition (templates/frame.md)
+sources:
+  receipts: required-for-every-story      # real capture, verbatim quote highlighted
+  walls: quote-card-or-nojs-capture        # never bypass
+youtube_monetization: allowed-if-each-episode-distinct

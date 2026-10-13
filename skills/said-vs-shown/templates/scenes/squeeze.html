@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<!--
+  squeeze.html — the episode open: every lead lands as a badge card, then the story cards rise to the
+  story row (empty TEST slots under them) and the rest collapse into an "on the page" pile.
+
+  Template placeholders (replaced by engine/fill_scenes.py, or by hand):
+    __SCENE_ID__  the scene id from video/scenes.json (composition id, CSS scope, timeline key)
+    __P__         a short id prefix with its dash, e.g. "sq-" (keeps ids unique on the assembled page)
+  Every per-episode value lives in the CFG block at the top of the script. Nothing else needs editing.
+  Colors are AI amber (#f2c14e); fill_scenes.py swaps in the edition's accent from frame.md.
+  Seek-safe rules kept from the proven scene: arrivals are tl.set (binary opacity) + tl.to (power4.out);
+  no CSS transform on any element GSAP moves; one paused timeline, registered last.
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: "Newsreader"; font-weight: 500; src: url("assets/fonts/newsreader-latin-500-normal.woff2") format("woff2"); }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        [data-composition-id="__SCENE_ID__"]#root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          color: #eee8dc;
+          font-family: "Newsreader", serif;
+        }
+        [data-composition-id="__SCENE_ID__"] .sq-meta {
+          position: absolute;
+          top: 56px;
+          font-family: "IBM Plex Mono", monospace;
+          font-size: 22px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #a59d8d;
+          white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__meta-l { left: 120px; }
+        [data-composition-id="__SCENE_ID__"] #__P__meta-l b { color: #f2c14e; font-weight: 600; }
+        /* counter ticker: two stacked states in a 30px window ("19 leads" → "3 stories · 16 on the page") */
+        [data-composition-id="__SCENE_ID__"] #__P__meta-r { right: 120px; height: 30px; overflow: hidden; text-align: right; width: 760px; }
+        [data-composition-id="__SCENE_ID__"] .sq-meta-state { position: absolute; right: 0; top: 0; display: block; width: 760px; }
+        [data-composition-id="__SCENE_ID__"] .sq-meta-state b { color: #eee8dc; font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] .sq-card {
+          position: absolute;
+          width: 300px;
+          height: 150px;
+          padding: 18px 20px;
+          background: #1c1a15;
+          border: 2px solid #3a352c;
+          border-radius: 10px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          transform-origin: 50% 50%;
+          opacity: 0;
+          will-change: transform;
+        }
+        [data-composition-id="__SCENE_ID__"] .sq-card-top {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-family: "IBM Plex Mono", monospace;
+          font-size: 18px;
+          letter-spacing: 0.06em;
+          color: #a59d8d;
+        }
+        [data-composition-id="__SCENE_ID__"] .sq-card-id { color: #f2c14e; font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] .sq-badge { display: inline-flex; align-items: center; gap: 8px; }
+        /* confidence glyphs (frame.md): checked solid · company half · reported outline · provider dashed · older muted */
+        [data-composition-id="__SCENE_ID__"] .sq-glyph { display: inline-block; width: 13px; height: 13px; border: 2px solid #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .sq-g-checked { background: #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .sq-g-company { background: linear-gradient(90deg, #eee8dc 50%, transparent 50%); }
+        [data-composition-id="__SCENE_ID__"] .sq-g-reported { background: transparent; }
+        [data-composition-id="__SCENE_ID__"] .sq-g-provider { border-style: dashed; border-color: #a59d8d; }
+        [data-composition-id="__SCENE_ID__"] .sq-g-older { border-color: #a59d8d; }
+        [data-composition-id="__SCENE_ID__"] .sq-card-title {
+          font-size: 28px;
+          font-weight: 500;
+          line-height: 1.12;
+          letter-spacing: -0.01em;
+          color: #eee8dc;
+          overflow: hidden;
+          max-height: 64px;
+        }
+        [data-composition-id="__SCENE_ID__"] .sq-test-slot {
+          position: absolute;
+          font-family: "IBM Plex Mono", monospace;
+          font-size: 22px;
+          letter-spacing: 0.08em;
+          color: #a59d8d;
+          display: flex;
+          gap: 14px;
+          align-items: baseline;
+          opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .sq-test-blank { flex: 1; height: 2px; border-bottom: 2px dashed #6b6455; transform: translateY(-6px); }
+        [data-composition-id="__SCENE_ID__"] #__P__pile-label {
+          position: absolute;
+          right: 120px;
+          top: 868px;
+          font-family: "IBM Plex Mono", monospace;
+          font-size: 20px;
+          letter-spacing: 0.08em;
+          color: #a59d8d;
+          opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__boundary { position: absolute; top: 760px; height: 12px; overflow: visible; }
+        [data-composition-id="__SCENE_ID__"] #__P__boundary path { fill: none; stroke: #f2c14e; stroke-width: 3; stroke-dasharray: 14 10; }
+      </style>
+
+      <div id="root" data-composition-id="__SCENE_ID__" data-width="1920" data-height="1080">
+        <div id="__P__meta-l" class="sq-meta"></div>
+        <div id="__P__meta-r" class="sq-meta" data-layout-allow-overflow="true">
+          <span class="sq-meta-state" id="__P__meta-from"></span>
+          <span class="sq-meta-state" id="__P__meta-to"></span>
+        </div>
+        <div id="__P__cards"></div>
+        <div id="__P__slots"></div>
+        <div id="__P__pile-label"></div>
+        <svg id="__P__boundary" preserveAspectRatio="none"><path id="__P__boundary-path" /></svg>
+      </div>
+
+      <script>
+        (function () {
+          // ==== CFG: every per-episode value (engine/fill_scenes.py rewrites this block) ====
+          const CFG = {
+            // meta strip, top-left: "<show> · <edition> · <window>" (show in accent)
+            meta: { show: "Said vs. Shown", edition: "AI", window: "Oct 5–8, 2026" },
+            // every lead reviewed, STORY CARDS FIRST (they rise to the story row), then the other leads.
+            // badge: checked | company | reported | provider | older (frame.md → badges). The grid shows up to 20.
+            leads: [
+              { title: "Math manuscripts", badge: "checked" },
+              { title: "Intelligent UI", badge: "checked" },
+              { title: "Humanity's Sixth Sense", badge: "company" },
+              { title: "Verifiable-rewards debate", badge: "provider" },
+              { title: "Deterministic inference", badge: "older" },
+              { title: "Cortex Harness", badge: "company" }
+            ],
+            stories: 3,          // how many of the first cards are stories (1–4)
+            total_leads: 6,      // leads reviewed (the ticker's first number); may exceed leads.length
+            // local seconds (word timings: audio/scene-words.json[scene id])
+            beats: {
+              cards: 0.25,       // first card lands; the rest follow every 0.026 s (one beat for the whole grid)
+              squeeze: 3.84,     // "Three…": the pile collapses, the stories rise, the ticker flips
+              tests: 5.12,       // "…very different tests": the empty TEST slots appear
+              boundary: 8.0      // "…where the evidence stops": the evidence line draws under the row
+            }
+          };
+          // ==== /CFG ====
+
+          const P = "__P__";
+          const $ = function (id) { return document.getElementById(P + id); };
+          const el = function (tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+          };
+
+          // meta strip + ticker
+          const ml = $("meta-l");
+          ml.appendChild(el("b", null, CFG.meta.show));
+          ml.appendChild(document.createTextNode([""].concat([CFG.meta.edition, CFG.meta.window].filter(Boolean)).join(" · ")));
+          const K = Math.max(1, Math.min(4, CFG.stories));
+          const leads = CFG.leads.slice(0, 20);
+          const N = leads.length;
+          const total = Math.max(CFG.total_leads || 0, CFG.leads.length);
+          const rest = total - K;
+          const from = $("meta-from"), to = $("meta-to");
+          from.appendChild(el("b", null, String(total)));
+          from.appendChild(document.createTextNode(total === 1 ? " lead" : " leads"));
+          to.appendChild(el("b", null, String(K)));
+          to.appendChild(document.createTextNode((K === 1 ? " story" : " stories") + (rest > 0 ? " · " + rest + " on the page" : "")));
+          $("pile-label").textContent = rest > 0 ? rest + " more · on the page →" : "";
+
+          // Grid constants (authored, not measured): 5 cols × 4 rows of 300×150 cards.
+          const GX = 160, GY = 222, CW = 300, CH = 150, COL = 325, ROW = 175;
+          const host = $("cards");
+          leads.forEach(function (l, i) {
+            const c = el("div", "sq-card");
+            c.id = P + "card-" + i;
+            c.style.left = GX + (i % 5) * COL + "px";
+            c.style.top = GY + Math.floor(i / 5) * ROW + "px";
+            const top = el("div", "sq-card-top");
+            top.appendChild(el("span", "sq-card-id", String(i + 1).padStart(2, "0")));
+            const b = el("span", "sq-badge");
+            b.appendChild(el("span", "sq-glyph sq-g-" + l.badge));
+            b.appendChild(document.createTextNode(String(l.badge).toUpperCase()));
+            top.appendChild(b);
+            c.appendChild(top);
+            c.appendChild(el("div", "sq-card-title", l.title));
+            // cards cross each other during the squeeze by design (layout audit: mark each text block)
+            c.querySelectorAll(".sq-card-id, .sq-badge, .sq-card-title").forEach(function (t) { t.setAttribute("data-layout-allow-overlap", "true"); });
+            host.appendChild(c);
+          });
+
+          // Story row (same geometry as engine/board.py): K cards of width W, 60px apart, centred; y = 552.
+          const W = Math.min(450, Math.floor((1680 - (K - 1) * 60) / K));
+          const SCALE = W / CW, TARGET_Y = 552;
+          const TX = [];
+          for (let k = 0; k < K; k++) TX.push(960 + (k - (K - 1) / 2) * (W + 60));
+          const slots = $("slots");
+          TX.forEach(function (x, k) {
+            const s = el("div", "sq-test-slot", "TEST ");
+            s.id = P + "test-" + k;
+            s.style.left = x - W / 2 + "px";
+            s.style.width = W + "px";
+            s.style.top = Math.round(TARGET_Y + (CH * SCALE) / 2 + 12) + "px";
+            s.appendChild(el("span", "sq-test-blank"));
+            slots.appendChild(s);
+          });
+          const BL = TX[0] - W / 2, BW = TX[K - 1] + W / 2 - BL;
+          const bsvg = $("boundary");
+          bsvg.style.left = BL + "px";
+          bsvg.style.width = BW + "px";
+          bsvg.setAttribute("viewBox", "0 0 " + BW + " 12");
+          $("boundary-path").setAttribute("d", "M 0 6 L " + BW + " 6");
+
+          const tl = gsap.timeline({ paused: true });
+          const B = CFG.beats;
+
+          // Beat 1 — the leads: waterfall-entry, row-major, one beat (N × 0.026 s).
+          gsap.set("#" + P + "meta-to", { y: 30 });
+          leads.forEach(function (_, i) {
+            const t = B.cards + i * 0.026;
+            tl.set("#" + P + "card-" + i, { opacity: 1, y: 46 }, t);
+            tl.to("#" + P + "card-" + i, { y: 0, duration: 0.18, ease: "power4.out" }, t);
+          });
+
+          // Beat 2 — the squeeze. Non-story cards nudge-curve into a pile; the stories lift to the story row.
+          const SQ = B.squeeze;
+          for (let i = K; i < N; i++) {
+            const cx = GX + (i % 5) * COL + CW / 2, cy = GY + Math.floor(i / 5) * ROW + CH / 2;
+            const px = 1712 + ((i * 7) % 5) * 3 - 6, py = 806 - (i - K) * 2.2; // index-derived pile jitter
+            const dx = px - cx, dy = py - cy, rot = ((i * 37) % 9) - 4;
+            const t0 = SQ + (i - K) * 0.012;
+            const id = "#" + P + "card-" + i;
+            tl.to(id, { x: dx * 0.1, y: dy * 0.1, duration: 0.12, ease: "power3.in" }, t0);
+            tl.to(id, { x: dx * 0.75, y: dy * 0.75, scale: 0.55, duration: 0.11, ease: "none" }, t0 + 0.12);
+            tl.to(id, { x: dx, y: dy, scale: 0.34, rotation: rot, opacity: 0.9, borderColor: "#5a5346", duration: 0.42, ease: "power4.out" }, t0 + 0.23);
+            // the pile is a deck of blank cards: text is unreadable at 34%, so it leaves during the burst
+            tl.to([id + " .sq-card-top", id + " .sq-card-title"], { opacity: 0, duration: 0.18, ease: "power1.out" }, t0 + 0.1);
+          }
+          for (let k = 0; k < K; k++) {
+            const ox = GX + (k % 5) * COL + CW / 2, oy = GY + Math.floor(k / 5) * ROW + CH / 2;
+            const tx = TX[k] - ox, ty = TARGET_Y - oy, t1 = SQ + 0.08 + k * 0.05;
+            const id = "#" + P + "card-" + k;
+            tl.to(id, { x: tx * 0.1, y: ty * 0.1, duration: 0.12, ease: "power3.in" }, t1);
+            tl.to(id, { x: tx * 0.75, y: ty * 0.75, scale: SCALE * 0.87, duration: 0.11, ease: "none" }, t1 + 0.12);
+            tl.to(id, { x: tx, y: ty, scale: SCALE, borderColor: "#f2c14e", duration: 0.42, ease: "power4.out" }, t1 + 0.23);
+          }
+          // Counter ticker: N leads → K stories.
+          tl.to("#" + P + "meta-from", { y: -30, duration: 0.35, ease: "power3.inOut" }, SQ);
+          tl.to("#" + P + "meta-to", { y: 0, duration: 0.35, ease: "power3.inOut" }, SQ);
+          if (rest > 0) {
+            tl.set("#" + P + "pile-label", { opacity: 1, y: 14 }, SQ + 0.62);
+            tl.to("#" + P + "pile-label", { y: 0, duration: 0.16, ease: "power4.out" }, SQ + 0.62);
+          }
+
+          // Beat 3 — "very different tests": empty TEST slots (the boards and the payoff fill them).
+          for (let k = 0; k < K; k++) {
+            const t = B.tests + k * 0.08;
+            tl.set("#" + P + "test-" + k, { opacity: 1, y: 30 }, t);
+            tl.to("#" + P + "test-" + k, { y: 0, duration: 0.15, ease: "power4.out" }, t);
+          }
+
+          // Beat 4 — "where the evidence stops": the evidence boundary draws (svg-path-draw, clip-path wipe).
+          tl.fromTo("#" + P + "boundary", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.9, ease: "power2.inOut" }, B.boundary);
+
+          window.__timelines["__SCENE_ID__"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

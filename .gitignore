@@ -1,0 +1,25 @@
+# media and captures are never committed: receipts are captured at build time from live pages
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.m4a
+*.aiff
+**/receipts/*.png
+**/receipts/*.jpg
+**/ledger/capture/
+**/snapshots/
+**/renders/
+**/qa/*.jpg
+**/.thumbnails/
+**/.hyperframes/
+**/.media/
+**/.tts-cache.json
+ffmpeg2pass-*
+node_modules/
+.DS_Store
+# local working episodes
+episodes/
+__pycache__/
+*.pyc
+!skills/said-vs-shown/templates/sfx/*.wav

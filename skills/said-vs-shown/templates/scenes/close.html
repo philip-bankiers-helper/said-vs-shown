@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<!--
+  close.html — the closing card, styled as a printed RECEIPT (frame.md → Brand): a paper slip on the dark
+  table that prints in, then lists each story with its badge and sources, the computed counts, the
+  disclosure line and (when credit is on) "Made with Said vs. Shown". Left of it: the sign-off, the
+  companion-page call to action and the badge key. Then the frame holds still for reading (~7 s).
+
+  Template placeholders (replaced by engine/fill_scenes.py, or by hand):
+    __SCENE_ID__  the scene id from video/scenes.json;  __P__  a short id prefix with its dash, e.g. "cl-"
+  Every per-episode value lives in the CFG block. Counts are computed by fill_scenes.py, never typed.
+  Colors are AI amber; fill_scenes.py swaps the accent. Times are LOCAL seconds (audio/scene-words.json).
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: "Newsreader"; font-weight: 500; src: url("assets/fonts/newsreader-latin-500-normal.woff2") format("woff2"); }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        [data-composition-id="__SCENE_ID__"]#root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          color: #eee8dc;
+          font-family: "Newsreader", serif;
+        }
+        [data-composition-id="__SCENE_ID__"] .cl-mono { font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+        /* meta plate: same geometry as the series kicker; persists across the closing hard cuts */
+        [data-composition-id="__SCENE_ID__"] #__P__plate {
+          position: absolute; left: 104px; top: 44px; padding: 10px 16px; border-radius: 8px;
+          background: rgba(20, 19, 15, 0.94);
+          font-size: 22px; color: #a59d8d; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__plate b { color: #f2c14e; font-weight: 600; }
+
+        /* left: sign-off, call to action, badge key (x 120–1060) */
+        [data-composition-id="__SCENE_ID__"] #__P__left { position: absolute; left: 120px; top: 290px; width: 940px; display: flex; flex-direction: column; align-items: flex-start; }
+        [data-composition-id="__SCENE_ID__"] #__P__eyebrow { font-size: 22px; color: #a59d8d; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__title {
+          margin-top: 18px; font-size: 64px; font-weight: 500; line-height: 1.1; letter-spacing: -0.03em; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__cta {
+          margin-top: 30px; font-family: "IBM Plex Mono", monospace; font-size: 24px; letter-spacing: 0.02em;
+          color: #f2c14e; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__cta span { display: inline-block; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__cta-b { margin-left: 0.6em; }
+        [data-composition-id="__SCENE_ID__"] #__P__key { margin-top: 84px; font-size: 20px; color: #a59d8d; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__key-row { display: flex; flex-wrap: wrap; column-gap: 26px; row-gap: 8px; margin-top: 12px; color: #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .cl-kb { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+        [data-composition-id="__SCENE_ID__"] .cl-kb.cl-dim { color: #a59d8d; }
+        [data-composition-id="__SCENE_ID__"] .cl-kg { display: inline-block; width: 15px; height: 15px; border: 2px solid #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .cl-kg-checked { background: #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .cl-kg-company { background: linear-gradient(90deg, #eee8dc 50%, transparent 50%); }
+        [data-composition-id="__SCENE_ID__"] .cl-kg-provider { border-style: dashed; border-color: #a59d8d; }
+        [data-composition-id="__SCENE_ID__"] .cl-kg-older { border-color: #a59d8d; }
+
+        /* right: the printed receipt (x 1160–1800, y 100–≈840). Paper = --paper, ink = --ink, secondary = --receipt-ink-2 */
+        [data-composition-id="__SCENE_ID__"] #__P__rc { position: absolute; left: 1160px; top: 100px; width: 640px; filter: drop-shadow(0 26px 40px rgba(0, 0, 0, 0.5)); }
+        [data-composition-id="__SCENE_ID__"] #__P__rc-print { width: 640px; }
+        [data-composition-id="__SCENE_ID__"] #__P__rc-paper {
+          background: #eee8dc; color: #14130f; padding: 30px 36px 22px;
+          font-family: "IBM Plex Mono", monospace; font-size: 20px; line-height: 28px; letter-spacing: 0.02em;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__rc-zig { display: block; width: 640px; height: 14px; }
+        [data-composition-id="__SCENE_ID__"] #__P__rc-zig path { fill: #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .cl-l { opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] .cl-up { text-transform: uppercase; letter-spacing: 0.06em; }
+        [data-composition-id="__SCENE_ID__"] .cl-wm { text-align: center; font-size: 26px; line-height: 34px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+        [data-composition-id="__SCENE_ID__"] .cl-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; white-space: nowrap; }
+        [data-composition-id="__SCENE_ID__"] .cl-ink2 { color: #5e584c; }
+        [data-composition-id="__SCENE_ID__"] .cl-sep { height: 2px; margin: 13px 0; background: repeating-linear-gradient(90deg, #5e584c 0 8px, transparent 8px 14px); }
+        [data-composition-id="__SCENE_ID__"] .cl-story { font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] .cl-story + .cl-src { margin-top: 0; }
+        [data-composition-id="__SCENE_ID__"] .cl-src + .cl-story { margin-top: 8px; }
+        [data-composition-id="__SCENE_ID__"] .cl-src { display: flex; gap: 12px; padding-left: 3ch; color: #5e584c; white-space: nowrap; }
+        [data-composition-id="__SCENE_ID__"] .cl-src .cl-u { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        [data-composition-id="__SCENE_ID__"] .cl-badge { display: inline-flex; align-items: center; gap: 10px; font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] .cl-g { display: inline-block; width: 14px; height: 14px; border: 2px solid #14130f; }
+        [data-composition-id="__SCENE_ID__"] .cl-g-checked { background: #14130f; }
+        [data-composition-id="__SCENE_ID__"] .cl-g-company { background: linear-gradient(90deg, #14130f 50%, transparent 50%); }
+        [data-composition-id="__SCENE_ID__"] .cl-g-provider { border-style: dashed; border-color: #5e584c; }
+        [data-composition-id="__SCENE_ID__"] .cl-g-older { border-color: #5e584c; }
+        [data-composition-id="__SCENE_ID__"] .cl-count { display: flex; align-items: baseline; white-space: nowrap; }
+        [data-composition-id="__SCENE_ID__"] .cl-dots { flex: 1; margin: 0 10px; border-bottom: 2px dotted #5e584c; }
+        [data-composition-id="__SCENE_ID__"] .cl-count .cl-v { font-weight: 600; }
+        [data-composition-id="__SCENE_ID__"] .cl-disc { font-size: 20px; line-height: 28px; }
+        [data-composition-id="__SCENE_ID__"] .cl-foot { text-align: center; color: #5e584c; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+      </style>
+
+      <div id="root" data-composition-id="__SCENE_ID__" data-width="1920" data-height="1080">
+        <div id="__P__plate" class="cl-mono"></div>
+
+        <div id="__P__left">
+          <div id="__P__eyebrow" class="cl-mono"></div>
+          <div id="__P__title"></div>
+          <div id="__P__cta"><span id="__P__cta-a"></span><span id="__P__cta-b"></span></div>
+          <div id="__P__key" class="cl-mono"><div id="__P__key-label"></div><div id="__P__key-row"></div></div>
+        </div>
+
+        <div id="__P__rc">
+          <div id="__P__rc-print">
+            <div id="__P__rc-paper"></div>
+            <svg id="__P__rc-zig" viewBox="0 0 640 14" preserveAspectRatio="none"><path id="__P__rc-zig-path" /></svg>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          // ==== CFG: every per-episode value (engine/fill_scenes.py rewrites this block) ====
+          const CFG = {
+            meta: { show: "Said vs. Shown", edition: "AI", window: "Oct 5–8, 2026" },
+            eyebrow: "Three tests of AI progress",           // episode title (empty = none)
+            title: "Every claim, shown on its source.",      // the sign-off
+            cta: { a: "16 more leads + every source", b: "→ companion page" },
+            key_label: "Badges",
+            receipt: {
+              wordmark: "Said vs. Shown",                    // episode.json → show
+              edition_line: "AI · Oct 5–8, 2026",
+              number: "No. 2026-10-08",
+              // one line item per story; sources print as domain/path (the companion page has the full list)
+              stories: [
+                { num: "01", topic: "Math", badge: "checked", sources: ["github.com/openai/math", "openai.com/index/sharing-ai-progress-in-mathematics"] },
+                { num: "02", topic: "Interfaces", badge: "checked", sources: ["help.openai.com/en/articles/6825453-chatgpt-release-notes"] },
+                { num: "03", topic: "Vision", badge: "company", sources: ["labs.scale.com/blog/introducing-humanitys-sixth-sense", "labs.scale.com/leaderboard/hss"] }
+              ],
+              // computed by fill_scenes.py (leads.json, stories, sources.json, receipts/*.json) — never typed
+              counts: [["Leads reviewed", "19"], ["Stories", "3"], ["Sources captured", "24"], ["Quotes located", "7"], ["Captured", "Oct 11, 2026"]],
+              disclosure: "AI-produced · AI voice · every claim sourced · reviewed by <Name>",
+              credit: true                                   // prints "Made with Said vs. Shown"
+            },
+            beats: {
+              title: 0.08,     // first words
+              receipt: 1.42,   // "Every source," — the receipt prints, its lines cascade
+              cta_a: 2.52,     // "…and the sixteen other leads,"
+              cta_b: 4.2,      // "…on the companion page."
+              key: 4.6         // badge key
+            }
+          };
+          // ==== /CFG ====
+
+          const P = "__P__";
+          const $ = function (id) { return document.getElementById(P + id); };
+          const el = function (tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+          };
+          const GLYPHS = ["checked", "company", "reported", "provider", "older"];
+
+          // plate + left column
+          const plate = $("plate");
+          plate.appendChild(el("b", null, CFG.meta.show));
+          plate.appendChild(document.createTextNode([""].concat([CFG.meta.edition, CFG.meta.window].filter(Boolean)).join(" · ")));
+          $("eyebrow").textContent = CFG.eyebrow || "";
+          $("title").textContent = CFG.title;
+          $("cta-a").textContent = CFG.cta.a;
+          $("cta-b").textContent = CFG.cta.b;
+          $("key-label").textContent = CFG.key_label;
+          GLYPHS.forEach(function (g) {
+            const k = el("span", "cl-kb" + (g === "older" ? " cl-dim" : ""));
+            k.appendChild(el("span", "cl-kg cl-kg-" + g));
+            k.appendChild(document.createTextNode(g));
+            $("key-row").appendChild(k);
+          });
+
+          // the receipt, line by line (every .cl-l prints in order)
+          const R = CFG.receipt, paper = $("rc-paper");
+          const line = function (cls, text) { const d = el("div", "cl-l " + cls, text); paper.appendChild(d); return d; };
+          const sep = function () { line("cl-sep"); };
+          line("cl-wm", R.wordmark);
+          const hdr = line("cl-row cl-up cl-ink2");
+          hdr.appendChild(el("span", null, R.edition_line));
+          hdr.appendChild(el("span", null, R.number));
+          sep();
+          const perStory = R.stories.length <= 3 ? 2 : 1;
+          R.stories.forEach(function (s) {
+            const row = line("cl-row cl-up cl-story");
+            row.appendChild(el("span", null, s.num + " " + s.topic));
+            const b = el("span", "cl-badge");
+            b.appendChild(el("span", "cl-g cl-g-" + s.badge));
+            b.appendChild(document.createTextNode(String(s.badge).toUpperCase()));
+            row.appendChild(b);
+            const shown = (s.sources || []).slice(0, perStory);
+            shown.forEach(function (u, j) {
+              const r = line("cl-src");
+              const more = (s.sources || []).length - shown.length;
+              const tag = j === shown.length - 1 && more > 0 ? "+" + more : "";
+              // mono: 42 characters fit the line (38 next to a "+N"); trim here so nothing is clipped
+              const max = tag ? 38 : 42;
+              r.appendChild(el("span", "cl-u", u.length > max ? u.slice(0, max - 1) + "…" : u));
+              if (tag) r.appendChild(el("span", null, tag));
+            });
+          });
+          sep();
+          R.counts.forEach(function (c) {
+            const r = line("cl-count cl-up");
+            r.appendChild(el("span", null, c[0]));
+            r.appendChild(el("span", "cl-dots"));
+            r.appendChild(el("span", "cl-v", c[1]));
+          });
+          sep();
+          line("cl-disc", String(R.disclosure).split(" · ").join("\u00a0· "));  // a wrap never starts a line with "·"
+          if (R.credit) {
+            sep();
+            line("cl-foot", "Made with Said vs. Shown");
+          }
+          // torn (zig-zag) bottom edge, 16px teeth
+          let d = "M 0 0 L 640 0";
+          for (let x = 640; x > 0; x -= 16) d += " L " + (x - 8) + " 14 L " + (x - 16) + " 0";
+          $("rc-zig-path").setAttribute("d", d + " Z");
+
+          const tl = gsap.timeline({ paused: true });
+          const B = CFG.beats;
+          // waterfall-entry: binary opacity via tl.set + y offset, then whip to rest on power4.out.
+          function arrive(sel, t, dy, dur) {
+            tl.set(sel, { opacity: 1, y: dy }, t);
+            tl.to(sel, { y: 0, duration: dur, ease: "power4.out" }, t);
+          }
+
+          // sign-off
+          if (CFG.eyebrow) arrive("#" + P + "eyebrow", Math.max(0, B.title - 0.04), 30, 0.15);
+          arrive("#" + P + "title", B.title, 70, 0.2);
+
+          // the receipt prints: the slip unrolls top→bottom at a constant feed rate (clip reveal), and each line
+          // appears as the feed passes it, like a thermal printer
+          const FEED = 1.3;
+          tl.fromTo("#" + P + "rc-print", { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: FEED, ease: "none" }, B.receipt);
+          const lines = paper.querySelectorAll(".cl-l");
+          const H = paper.offsetHeight + 14;
+          lines.forEach(function (l, i) {
+            l.id = P + "l" + i;
+            const frac = H > 14 ? Math.min(1, (l.offsetTop + l.offsetHeight * 0.6) / H) : i / lines.length;
+            arrive("#" + l.id, B.receipt + frac * FEED, 6, 0.12);
+          });
+
+          // call to action, then the badge key; everything has landed by ~5 s, then the card holds still for reading
+          arrive("#" + P + "cta-a", B.cta_a, 40, 0.16);
+          arrive("#" + P + "cta-b", B.cta_b, 40, 0.16);
+          arrive("#" + P + "key", B.key, 30, 0.16);
+
+          window.__timelines["__SCENE_ID__"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

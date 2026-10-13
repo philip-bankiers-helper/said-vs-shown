@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<!--
+  receipt.html — the canonical RECEIPT scene: a real 2x capture of the source page inside a generic
+  browser frame, the camera pushing in on the quoted sentence (coordinate-target-zoom), and an accent
+  highlighter sweeping each line of the quote as it is spoken. After the quote the camera either pulls
+  back to the left to make room for the ILLUSTRATION slot, pulls back to the whole page, or holds.
+
+  Receipt scenes are authored per story (engine/fill_scenes.py does NOT fill them):
+    1. copy this file to video/compositions/NN-<scene>.html
+    2. replace __SCENE_ID__ (scene id from scenes.json) and __P__ (short id prefix with its dash, e.g. "mr-")
+    3. fill CFG: kicker + source chip from edit/episode.json, receipt geometry from
+       video/assets/receipts/Rnn-*.json ("viewport" and "lines"), every time from
+       video/audio/scene-words.json[scene id] (LOCAL seconds; sync each highlight line to its words)
+    4. replace the default diagram inside the ILLUSTRATION SLOT with a bespoke visual for this story
+       (vary it per story; keep the visible ILLUSTRATION tag; never present it as a product's real output)
+  Colors are AI amber (#f2c14e); swap for the edition accent from frame.md.
+  Seek-safe rules: tl.set + tl.to arrivals, fromTo for every wipe, no CSS transform on GSAP-moved
+  elements (zoom-outer scales, zoom-inner translates), one paused timeline registered last.
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: "Newsreader"; font-weight: 500; src: url("assets/fonts/newsreader-latin-500-normal.woff2") format("woff2"); }
+        @font-face { font-family: "Newsreader"; font-weight: 300; src: url("assets/fonts/newsreader-latin-300-normal.woff2") format("woff2"); }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        [data-composition-id="__SCENE_ID__"]#root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          color: #eee8dc;
+          font-family: "Newsreader", serif;
+        }
+        [data-composition-id="__SCENE_ID__"] .rc-mono { font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+        /* kicker plate (top-left): NN · TOPIC · badge · date · who */
+        [data-composition-id="__SCENE_ID__"] #__P__kicker {
+          position: absolute; left: 104px; top: 44px; padding: 10px 16px; border-radius: 8px;
+          background: rgba(20, 19, 15, 0.94);
+          display: flex; gap: 22px; align-items: baseline;
+          font-size: 22px; color: #a59d8d; white-space: nowrap; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__kicker .rc-num { color: #f2c14e; font-weight: 600; font-size: 26px; }
+        [data-composition-id="__SCENE_ID__"] #__P__kicker .rc-num.rc-wordmark { letter-spacing: 0.16em; }
+        [data-composition-id="__SCENE_ID__"] #__P__kicker .rc-sep { color: #a59d8d; font-size: 26px; margin: 0 -8px; }
+        [data-composition-id="__SCENE_ID__"] #__P__kicker .rc-topic { color: #eee8dc; font-weight: 600; font-size: 26px; }
+        [data-composition-id="__SCENE_ID__"] .rc-badge { display: inline-flex; align-items: center; gap: 10px; }
+        [data-composition-id="__SCENE_ID__"] .rc-glyph { display: inline-block; width: 15px; height: 15px; border: 2px solid #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .rc-g-checked { background: #eee8dc; }
+        [data-composition-id="__SCENE_ID__"] .rc-g-company { background: linear-gradient(90deg, #eee8dc 50%, transparent 50%); }
+        [data-composition-id="__SCENE_ID__"] .rc-g-reported { background: transparent; }
+        [data-composition-id="__SCENE_ID__"] .rc-g-provider { border-style: dashed; border-color: #a59d8d; }
+        [data-composition-id="__SCENE_ID__"] .rc-g-older { border-color: #a59d8d; }
+        /* source chip (top-right): SOURCE domain/path · captured date */
+        [data-composition-id="__SCENE_ID__"] #__P__source {
+          position: absolute; right: 104px; top: 46px; padding: 10px 16px; border-radius: 8px;
+          background: rgba(20, 19, 15, 0.94);
+          font-size: 20px; color: #a59d8d; white-space: nowrap; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__source b { color: #eee8dc; font-weight: 400; text-transform: none; letter-spacing: 0.02em; }
+        /* coordinate-target-zoom: outer scales around the frame centre, inner counter-translates */
+        [data-composition-id="__SCENE_ID__"] #__P__zoom-outer { position: absolute; inset: 0; transform-origin: 50% 50%; will-change: transform; }
+        [data-composition-id="__SCENE_ID__"] #__P__zoom-inner { position: absolute; inset: 0; will-change: transform; }
+        /* generic browser frame: no cloned site chrome */
+        [data-composition-id="__SCENE_ID__"] #__P__frame {
+          position: absolute; left: 400px; top: 150px; width: 1120px;
+          border-radius: 14px; overflow: hidden;
+          border: 2px solid #3a352c; background: #ffffff;
+          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__chrome {
+          height: 44px; background: #1c1a15; border-bottom: 2px solid #3a352c;
+          display: flex; align-items: center; gap: 10px; padding: 0 18px;
+          font-family: "IBM Plex Mono", monospace; font-size: 18px; color: #a59d8d; letter-spacing: 0.02em;
+        }
+        [data-composition-id="__SCENE_ID__"] .rc-dot { width: 12px; height: 12px; border-radius: 50%; background: #3a352c; }
+        [data-composition-id="__SCENE_ID__"] #__P__url { margin-left: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        [data-composition-id="__SCENE_ID__"] #__P__page { position: relative; width: 1120px; }
+        [data-composition-id="__SCENE_ID__"] #__P__shot { position: absolute; left: 0; top: 0; width: 1120px; display: block; }
+        /* highlighter: accent-wash bar, multiplied onto the white page, sweeps left→right (scaleX via fromTo) */
+        [data-composition-id="__SCENE_ID__"] .rc-hl {
+          position: absolute; background: rgba(242, 193, 78, 0.42); border-radius: 3px;
+          transform-origin: left center; mix-blend-mode: multiply;
+        }
+
+        /* ═══ ILLUSTRATION SLOT (styles) — replace with this story's bespoke visual ═══
+           Box: right of the pulled-back exhibit, x 1010–1800, y 196–836 (never into the caption band y ≥ 920).
+           Default: a vertical chain of 2–3 labelled nodes with arrows and an optional accent check on the last. */
+        [data-composition-id="__SCENE_ID__"] #__P__illus { position: absolute; left: 1010px; top: 196px; width: 790px; height: 640px; }
+        [data-composition-id="__SCENE_ID__"] #__P__illus-tag {
+          position: absolute; right: 0; top: 0; padding: 6px 12px;
+          border: 2px solid #3a352c; border-radius: 6px; font-size: 18px; color: #a59d8d; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .rc-node {
+          position: absolute; left: 0; width: 700px; height: 118px; padding: 20px 28px; box-sizing: border-box;
+          background: #1c1a15; border: 2px solid #3a352c; border-radius: 12px;
+          display: flex; flex-direction: column; justify-content: center; gap: 6px; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .rc-node.rc-accent { border-color: #f2c14e; }
+        [data-composition-id="__SCENE_ID__"] .rc-node .rc-t { font-size: 38px; font-weight: 500; line-height: 1.1; letter-spacing: -0.01em; }
+        [data-composition-id="__SCENE_ID__"] .rc-node .rc-s { font-family: "IBM Plex Mono", monospace; font-size: 20px; color: #a59d8d; letter-spacing: 0.04em; }
+        [data-composition-id="__SCENE_ID__"] .rc-check { position: absolute; right: 30px; top: 30px; width: 58px; height: 58px; overflow: visible; }
+        [data-composition-id="__SCENE_ID__"] .rc-check path { fill: none; stroke: #f2c14e; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+        [data-composition-id="__SCENE_ID__"] .rc-arrow { position: absolute; left: 330px; width: 40px; height: 78px; overflow: visible; }
+        [data-composition-id="__SCENE_ID__"] .rc-arrow path { fill: none; stroke: #a59d8d; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        /* ═══ /ILLUSTRATION SLOT (styles) ═══ */
+      </style>
+
+      <div id="root" data-composition-id="__SCENE_ID__" data-width="1920" data-height="1080">
+        <div id="__P__zoom-outer" data-layout-allow-overflow="true">
+          <div id="__P__zoom-inner">
+            <div id="__P__frame">
+              <div id="__P__chrome"><span class="rc-dot"></span><span class="rc-dot"></span><span class="rc-dot"></span><span id="__P__url" data-layout-allow-overlap="true" data-layout-allow-occlusion="true"></span><!-- the kicker covers the bar when the camera pushes in --></div>
+              <div id="__P__page">
+                <img id="__P__shot" alt=""><!-- src + alt come from CFG.receipt -->
+                <!-- highlighter bars (.rc-hl) are created from CFG.receipt.lines -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="__P__kicker" class="rc-mono"></div>
+        <div id="__P__source" class="rc-mono"></div>
+
+        <!-- ═══ ILLUSTRATION SLOT (markup) — replace with this story's bespoke visual ═══
+             Keep the ILLUSTRATION tag visible. The default diagram is built from CFG.illustration.nodes. -->
+        <div id="__P__illus">
+          <div id="__P__illus-tag" class="rc-mono"></div>
+        </div>
+        <!-- ═══ /ILLUSTRATION SLOT (markup) ═══ -->
+      </div>
+
+      <script>
+        (function () {
+          // ==== CFG: every per-scene value (authored per story from episode.json, the receipt JSON and scene-words.json) ====
+          const CFG = {
+            // kicker plate. badge: checked | company | reported | provider | older | "" (none).
+            // wordmark: true sets `num` as the series wordmark (tracked +0.16em); sep puts a muted "·" between num and topic.
+            kicker: { num: "01", topic: "Math", badge: "checked", meta: "Oct 6 · OpenAI", wordmark: false, sep: false },
+            // top-right chip: SOURCE <label> · <captured>
+            source: { label: "github.com/openai/math", captured: "captured Oct 11" },
+            url: "github.com/openai/math",                 // text in the generic browser bar
+            receipt: {
+              img: "assets/receipts/R02-math-intro.png",   // the 2x capture (engine/receipt.mjs)
+              alt: "openai/math README, captured 2026-10-11",
+              viewport: { width: 1440, height: 900 },      // receipt JSON → viewport (CSS px)
+              lines: [                                     // receipt JSON → lines (CSS px), one rect per text line of the quote
+                { x: 145, y: 377.6, w: 823.6, h: 18 },
+                { x: 145, y: 401.6, w: 49.3, h: 18 }
+              ]
+            },
+            beats: { kicker: 0.15, source: 0.3, frame: 0.4 },
+            // push-in onto the quote. zoom 0 = auto (fits the quote to ~70% of the frame width, max 2.2×)
+            camera: { at: 2.5, dur: 1.4, zoom: 0 },
+            // one entry per line in receipt.lines: when the line's first word is said, and how long its words take.
+            // optional ease per entry; default: power1.inOut for the first line (power2.out after it), linear for sweeps > 3 s
+            highlight: [
+              { at: 3.4, dur: 2.6 },
+              { at: 6.4, dur: 0.3 }
+            ],
+            // after the quote. mode: "illustration" (pull back left, the slot builds right) | "pullback" (whole page) | "hold"
+            after: { mode: "illustration", at: 6.85, dur: 1.2 },
+            // ILLUSTRATION SLOT default diagram (ignored unless after.mode is "illustration"):
+            // 2–3 nodes; `at` = when the node lands; the arrow into a node draws 0.5 s before it; check_at = accent tick on the last node (null = none)
+            illustration: {
+              tag: "Illustration",
+              tag_at: 7.45,
+              nodes: [
+                { t: "The paper's claim", s: "in words", at: 7.55 },
+                { t: "A formal statement + proof", s: "written in Lean", at: 8.55 },
+                { t: "Proof checker", s: "proof accepted", at: 9.85, accent: true }
+              ],
+              check_at: 10.6
+            }
+          };
+          // ==== /CFG ====
+
+          const P = "__P__";
+          const $ = function (id) { return document.getElementById(P + id); };
+          const el = function (tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+          };
+
+          // kicker + source chip
+          const kk = CFG.kicker, kick = $("kicker");
+          if (kk.num) kick.appendChild(el("span", "rc-num" + (kk.wordmark ? " rc-wordmark" : ""), kk.num));
+          if (kk.sep) kick.appendChild(el("span", "rc-sep", "·"));
+          if (kk.topic) kick.appendChild(el("span", "rc-topic", kk.topic));
+          if (kk.badge || kk.meta) {
+            const b = el("span", "rc-badge");
+            if (kk.badge) b.appendChild(el("span", "rc-glyph rc-g-" + kk.badge));
+            b.appendChild(document.createTextNode([kk.badge ? String(kk.badge).toUpperCase() : "", kk.meta || ""].filter(Boolean).join(" · ")));
+            kick.appendChild(b);
+          }
+          const src = $("source");
+          src.appendChild(document.createTextNode("Source "));
+          src.appendChild(el("b", null, CFG.source.label));
+          if (CFG.source.captured) src.appendChild(document.createTextNode(" · " + CFG.source.captured));
+          $("url").textContent = CFG.url;
+
+          // receipt geometry: the capture is shown 1120px wide → K = 1120 / viewport width
+          const R = CFG.receipt, VW = R.viewport.width, VH = R.viewport.height;
+          const K = 1120 / VW, PAGE_H = Math.round(VH * K);
+          const FRAME_L = 400, FRAME_T = 150, CHROME = 44;
+          $("page").style.height = PAGE_H + "px";
+          const shot = $("shot");
+          shot.src = R.img;
+          shot.alt = R.alt || "";
+          shot.style.height = PAGE_H + "px";
+          R.lines.forEach(function (l, i) {
+            const h = el("div", "rc-hl");
+            h.id = P + "hl-" + i;
+            h.style.left = (l.x - 4) * K + "px";
+            h.style.top = (l.y - 3) * K + "px";
+            h.style.width = (l.w + 8) * K + "px";
+            h.style.height = (l.h + 6) * K + "px";
+            $("page").appendChild(h);
+          });
+          // target = centre of the union of the quote's lines, in frame-layout coordinates
+          const ux0 = Math.min.apply(null, R.lines.map(function (l) { return l.x; }));
+          const uy0 = Math.min.apply(null, R.lines.map(function (l) { return l.y; }));
+          const ux1 = Math.max.apply(null, R.lines.map(function (l) { return l.x + l.w; }));
+          const uy1 = Math.max.apply(null, R.lines.map(function (l) { return l.y + l.h; }));
+          const tgtX = FRAME_L + ((ux0 + ux1) / 2) * K, tgtY = FRAME_T + CHROME + ((uy0 + uy1) / 2) * K;
+          const OFF_X = tgtX - 960, OFF_Y = tgtY - 540;
+          const ZOOM = CFG.camera.zoom || Math.max(1.3, Math.min(2.2, 1344 / ((ux1 - ux0) * K), 520 / ((uy1 - uy0) * K)));
+
+          const tl = gsap.timeline({ paused: true });
+          const B = CFG.beats;
+          function arrive(sel, t, dy, dur) {
+            tl.set(sel, { opacity: 1, y: dy }, t);
+            tl.to(sel, { y: 0, duration: dur, ease: "power4.out" }, t);
+          }
+
+          // kicker + source chip arrive (waterfall-entry)
+          arrive("#" + P + "kicker", B.kicker, 40, 0.18);
+          arrive("#" + P + "source", B.source, 30, 0.15);
+
+          // the exhibit rises into place
+          tl.fromTo("#" + P + "frame", { y: 80, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, B.frame);
+
+          // the camera pushes in to the sentence
+          tl.fromTo("#" + P + "zoom-outer", { scale: 1 }, { scale: ZOOM, duration: CFG.camera.dur, ease: "power3.inOut" }, CFG.camera.at);
+          tl.fromTo("#" + P + "zoom-inner", { x: 0, y: 0 }, { x: -OFF_X, y: -OFF_Y, duration: CFG.camera.dur, ease: "power3.inOut" }, CFG.camera.at);
+
+          // the highlighter sweeps each line as its words are said
+          CFG.highlight.forEach(function (h, i) {
+            if (!document.getElementById(P + "hl-" + i)) return;
+            const ease = h.ease || (h.dur > 3 ? "none" : i === 0 ? "power1.inOut" : "power2.out");
+            tl.fromTo("#" + P + "hl-" + i, { scaleX: 0 }, { scaleX: 1, duration: h.dur, ease: ease }, h.at);
+          });
+          // lines without a timing entry stay drawn from the start of the quote
+          R.lines.forEach(function (_, i) {
+            if (i >= CFG.highlight.length) tl.fromTo("#" + P + "hl-" + i, { scaleX: 0 }, { scaleX: 1, duration: 0.3 }, CFG.highlight.length ? CFG.highlight[CFG.highlight.length - 1].at : CFG.camera.at);
+          });
+
+          const A = CFG.after;
+          if (A.mode === "pullback") {
+            // back out to the whole page; the highlight stays on
+            tl.to("#" + P + "zoom-outer", { scale: 1, duration: A.dur, ease: "power3.inOut" }, A.at);
+            tl.to("#" + P + "zoom-inner", { x: 0, y: 0, duration: A.dur, ease: "power3.inOut" }, A.at);
+          } else if (A.mode === "illustration") {
+            // pull back left (frame centred at x≈560, 0.62×); the ILLUSTRATION SLOT builds on the right
+            tl.to("#" + P + "zoom-outer", { scale: 0.62, duration: A.dur, ease: "power3.inOut" }, A.at);
+            tl.to("#" + P + "zoom-inner", { x: -645, y: 540 - (FRAME_T + (CHROME + PAGE_H) / 2), duration: A.dur, ease: "power3.inOut" }, A.at);
+
+            // ═══ ILLUSTRATION SLOT (motion) — replace with this story's bespoke visual ═══
+            const IL = CFG.illustration, slot = $("illus");
+            $("illus-tag").textContent = IL.tag || "Illustration";
+            arrive("#" + P + "illus-tag", IL.tag_at, 20, 0.15);
+            const nodes = IL.nodes.slice(0, 3);
+            nodes.forEach(function (n, i) {
+              const top = 58 + i * 196;
+              const d = el("div", "rc-node" + (n.accent ? " rc-accent" : ""));
+              d.id = P + "node-" + i;
+              d.style.top = top + "px";
+              d.appendChild(el("div", "rc-t", n.t));
+              if (n.s) d.appendChild(el("div", "rc-s", n.s));
+              if (i === nodes.length - 1 && IL.check_at != null) {
+                const svgNS = "http://www.w3.org/2000/svg";
+                const sv = document.createElementNS(svgNS, "svg");
+                sv.setAttribute("class", "rc-check");
+                sv.setAttribute("id", P + "check");
+                sv.setAttribute("viewBox", "0 0 58 58");
+                const pth = document.createElementNS(svgNS, "path");
+                pth.setAttribute("d", "M 6 30 L 23 47 L 52 10");
+                sv.appendChild(pth);
+                d.appendChild(sv);
+              }
+              slot.appendChild(d);
+              if (i > 0) {
+                const svgNS = "http://www.w3.org/2000/svg";
+                const ar = document.createElementNS(svgNS, "svg");
+                ar.setAttribute("class", "rc-arrow");
+                ar.setAttribute("id", P + "arrow-" + i);
+                ar.setAttribute("viewBox", "0 0 40 78");
+                ar.style.top = top - 78 + "px";
+                const ap = document.createElementNS(svgNS, "path");
+                ap.setAttribute("d", "M 20 4 L 20 70 M 8 58 L 20 72 L 32 58");
+                ar.appendChild(ap);
+                slot.appendChild(ar);
+                tl.fromTo("#" + P + "arrow-" + i, { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: 0.35, ease: "power2.out" }, n.arrow_at != null ? n.arrow_at : n.at - 0.5);
+              }
+              arrive("#" + P + "node-" + i, n.at, 50, 0.18);
+            });
+            if (IL.check_at != null && nodes.length) {
+              tl.fromTo("#" + P + "check", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.4, ease: "power2.out" }, IL.check_at);
+            }
+            // ═══ /ILLUSTRATION SLOT (motion) ═══
+          }
+
+          window.__timelines["__SCENE_ID__"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

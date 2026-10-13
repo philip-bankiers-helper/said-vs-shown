@@ -1,0 +1,11 @@
+{
+  "hyperframes": "0.8.147",
+  "voice": "af_heart",
+  "speed": 1.06,
+  "lufs": -16,
+  "true_peak": -1.5,
+  "wpm": [145, 185],
+  "max_cps": 21,
+  "max_chars": 42,
+  "home": "~/.said-vs-shown"
+}

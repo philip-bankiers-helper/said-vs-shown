@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<!--
+  payoff.html — the claim ↔ test matrix, built row by row as the narration names each pairing, then the
+  closing statement with an accent underline under its key phrase.
+
+  Template placeholders (replaced by engine/fill_scenes.py, or by hand):
+    __SCENE_ID__  the scene id from video/scenes.json;  __P__  a short id prefix with its dash, e.g. "po-"
+  Every per-episode value lives in the CFG block. Colors are AI amber; fill_scenes.py swaps the accent.
+  Rows: 1–4 (episode.json → matrix). Times are LOCAL seconds from audio/scene-words.json[scene id].
+-->
+<html>
+  <head>
+    <meta charset="UTF-8">
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face { font-family: "Newsreader"; font-weight: 300; src: url("assets/fonts/newsreader-latin-300-normal.woff2") format("woff2"); }
+        @font-face { font-family: "Newsreader"; font-weight: 500; src: url("assets/fonts/newsreader-latin-500-normal.woff2") format("woff2"); }
+        @font-face { font-family: "Newsreader"; font-weight: 700; src: url("assets/fonts/newsreader-latin-700-normal.woff2") format("woff2"); }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 400; src: url("assets/fonts/IBMPlexMono-Regular-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }
+        @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Pi.woff2") format("woff2"); unicode-range: U+2190-2199, U+2713, U+2500-259F; }
+        [data-composition-id="__SCENE_ID__"]#root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          color: #eee8dc;
+          font-family: "Newsreader", serif;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-mono { font-family: "IBM Plex Mono", monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+        /* meta plate: same geometry as the series kicker */
+        [data-composition-id="__SCENE_ID__"] #__P__plate {
+          position: absolute; left: 104px; top: 44px; padding: 10px 16px; border-radius: 8px;
+          background: rgba(20, 19, 15, 0.94);
+          font-size: 22px; color: #a59d8d; white-space: nowrap; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__plate b { color: #f2c14e; font-weight: 600; }
+        /* claim ↔ test matrix (column x: labels 120, claims 460, divider 1004, tests 1070) */
+        [data-composition-id="__SCENE_ID__"] .po-head { position: absolute; top: 168px; font-size: 22px; color: #a59d8d; white-space: nowrap; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__head-claim { left: 460px; }
+        [data-composition-id="__SCENE_ID__"] #__P__head-test { left: 1070px; }
+        [data-composition-id="__SCENE_ID__"] .po-rule { position: absolute; left: 120px; width: 1680px; height: 2px; background: #3a352c; }
+        /* evidence boundary as the column divider (frame.md motif: stroke 3, dash 14/10) */
+        [data-composition-id="__SCENE_ID__"] #__P__divider { position: absolute; left: 1004px; top: 150px; width: 12px; overflow: visible; }
+        [data-composition-id="__SCENE_ID__"] #__P__divider path { fill: none; stroke: #f2c14e; stroke-width: 3; stroke-dasharray: 14 10; }
+        [data-composition-id="__SCENE_ID__"] .po-row {
+          position: absolute; left: 120px; width: 1680px; box-sizing: border-box;
+          display: flex; align-items: baseline;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-label {
+          flex: none; width: 340px; display: flex; gap: 16px; align-items: baseline;
+          font-size: 26px; font-weight: 600; color: #eee8dc; white-space: nowrap; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-label .po-num { color: #f2c14e; }
+        [data-composition-id="__SCENE_ID__"] .po-claim {
+          flex: none; width: 610px; font-size: 48px; font-weight: 500; line-height: 1.15;
+          letter-spacing: -0.01em; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-claim span { display: inline-block; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] .po-test { flex: none; display: flex; align-items: baseline; white-space: nowrap; }
+        [data-composition-id="__SCENE_ID__"] .po-idx {
+          display: inline-block; margin-right: 20px; font-family: "IBM Plex Mono", monospace;
+          font-size: 24px; font-weight: 600; letter-spacing: 0.04em; color: #f2c14e; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-frag {
+          display: inline-block; font-size: 48px; font-weight: 300; line-height: 1.15;
+          letter-spacing: -0.01em; opacity: 0;
+        }
+        [data-composition-id="__SCENE_ID__"] .po-frag + .po-frag { margin-left: 0.26em; }
+        /* closing statement under the matrix */
+        [data-composition-id="__SCENE_ID__"] #__P__stmt {
+          position: absolute; left: 120px; font-size: 56px; font-weight: 300;
+          line-height: 1.14; letter-spacing: -0.02em; white-space: nowrap;
+        }
+        [data-composition-id="__SCENE_ID__"] #__P__stmt .po-sfrag { display: inline-block; opacity: 0; }
+        [data-composition-id="__SCENE_ID__"] #__P__s2.po-gap { margin-left: 0.26em; }
+        [data-composition-id="__SCENE_ID__"] #__P__s2 b { font-weight: 700; position: relative; display: inline-block; }
+        [data-composition-id="__SCENE_ID__"] #__P__ul { position: absolute; left: 0; bottom: -10px; width: 100%; height: 10px; overflow: visible; }
+        [data-composition-id="__SCENE_ID__"] #__P__ul path { fill: none; stroke: #f2c14e; stroke-width: 4; stroke-linecap: round; }
+      </style>
+
+      <div id="root" data-composition-id="__SCENE_ID__" data-width="1920" data-height="1080">
+        <div id="__P__plate" class="po-mono"></div>
+        <div id="__P__head-claim" class="po-head po-mono"></div>
+        <div id="__P__head-test" class="po-head po-mono"></div>
+        <svg id="__P__divider" preserveAspectRatio="none"><path id="__P__divider-path" /></svg>
+        <div id="__P__matrix"></div>
+        <div id="__P__stmt"><span id="__P__s1" class="po-sfrag"></span><span id="__P__s2" class="po-sfrag"><b id="__P__mark"><svg id="__P__ul" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M 1 6 L 99 6" /></svg></b></span></div>
+      </div>
+
+      <script>
+        (function () {
+          // ==== CFG: every per-episode value (engine/fill_scenes.py rewrites this block) ====
+          const CFG = {
+            meta: { show: "Said vs. Shown", edition: "AI", window: "Oct 5–8, 2026" },
+            heads: { claim: "Claim", test: "Test that fits" },
+            // one row per story (episode.json → matrix + stories). test: one or more fragments, each arriving on its own beat.
+            // at: label lands / claim lands / index numeral lands / one time per test fragment (LOCAL seconds)
+            rows: [
+              { num: "01", label: "Math", claim: "A math result", test: ["A formal proof check"],
+                at: { label: 0.2, claim: 2.72, idx: 3.86, test: [4.46] } },
+              { num: "02", label: "Interfaces", claim: "An interactive answer", test: ["Usability", "+ accuracy tests"],
+                at: { label: 0.37, claim: 5.58, idx: 6.58, test: [7.5, 8.86] } },
+              { num: "03", label: "Vision", claim: "Visual reasoning", test: ["Tasks like", "the real situations"],
+                at: { label: 0.53, claim: 9.42, idx: 10.7, test: [10.82, 11.6] } }
+            ],
+            // closing statement: lead (light) + mark (bold, underlined while said) + tail
+            statement: { lead: "Passing one", mark: "doesn't settle", tail: " the others.",
+                         at: { lead: 14.36, mark: 15.1, underline: 15.18, underline_dur: 0.8 } },
+            beats: { plate: 0.05, head_claim: 1.32, head_test: 1.92, skeleton: 1.4 }
+          };
+          // ==== /CFG ====
+
+          const P = "__P__";
+          const $ = function (id) { return document.getElementById(P + id); };
+          const el = function (tag, cls, text) {
+            const e = document.createElement(tag);
+            if (cls) e.className = cls;
+            if (text != null) e.textContent = text;
+            return e;
+          };
+
+          const plate = $("plate");
+          plate.appendChild(el("b", null, CFG.meta.show));
+          plate.appendChild(document.createTextNode([""].concat([CFG.meta.edition, CFG.meta.window].filter(Boolean)).join(" · ")));
+          $("head-claim").textContent = CFG.heads.claim;
+          $("head-test").textContent = CFG.heads.test;
+
+          // matrix geometry: 3 rows of 152px from y 226 (4 rows shrink to 114px)
+          const rows = CFG.rows.slice(0, 4), NR = rows.length;
+          const RH = NR <= 3 ? 152 : 114, PAD = NR <= 3 ? 46 : 28, TOP = 226;
+          const mx = $("matrix");
+          for (let i = 0; i <= NR; i++) {
+            const r = el("div", "po-rule");
+            r.id = P + "rule-" + i;
+            r.style.top = TOP - 2 + i * RH + "px";
+            mx.appendChild(r);
+          }
+          const DH = NR * RH + 76;
+          const dv = $("divider");
+          dv.style.height = DH + "px";
+          dv.setAttribute("viewBox", "0 0 12 " + DH);
+          $("divider-path").setAttribute("d", "M 6 0 L 6 " + DH);
+          rows.forEach(function (row, i) {
+            const n = i + 1;
+            const r = el("div", "po-row");
+            r.id = P + "row-" + n;
+            r.style.top = TOP + i * RH + "px";
+            r.style.height = RH + "px";
+            r.style.paddingTop = PAD + "px";
+            const lab = el("div", "po-label po-mono");
+            lab.id = P + "lab-" + n;
+            lab.appendChild(el("span", "po-num", row.num));
+            lab.appendChild(el("span", null, row.label));
+            r.appendChild(lab);
+            const cl = el("div", "po-claim");
+            const cs = el("span", null, row.claim);
+            cs.id = P + "c" + n;
+            cl.appendChild(cs);
+            r.appendChild(cl);
+            const te = el("div", "po-test");
+            const ix = el("span", "po-idx", row.num);
+            ix.id = P + "idx-" + n;
+            te.appendChild(ix);
+            [].concat(row.test).forEach(function (f, j) {
+              const fr = el("span", "po-frag", f);
+              fr.id = P + "t" + n + "-" + j;
+              te.appendChild(fr);
+            });
+            r.appendChild(te);
+            mx.appendChild(r);
+          });
+          const st = CFG.statement, stmt = $("stmt");
+          stmt.style.top = TOP + NR * RH + 66 + "px";
+          $("s1").textContent = st.lead || "";
+          const mark = $("mark");
+          mark.insertBefore(document.createTextNode(st.mark || ""), mark.firstChild);
+          if (!st.mark) mark.style.display = "none";
+          $("s2").appendChild(document.createTextNode(st.tail || ""));
+          if (st.lead && (st.mark || /^\S/.test(st.tail || ""))) $("s2").classList.add("po-gap");
+
+          const tl = gsap.timeline({ paused: true });
+          const B = CFG.beats;
+          // waterfall-entry: binary opacity via tl.set + y offset, then whip to rest on power4.out.
+          function arrive(sel, t, dy, dur) {
+            tl.set(sel, { opacity: 1, y: dy }, t);
+            tl.to(sel, { y: 0, duration: dur, ease: "power4.out" }, t);
+          }
+
+          arrive("#" + P + "plate", B.plate, 30, 0.15);
+          // "Three results,": the story labels land as a column; they become the row labels.
+          rows.forEach(function (row, i) { arrive("#" + P + "lab-" + (i + 1), row.at.label, 60, 0.18 - i * 0.01); });
+          // "three different tests.": header row, ruled skeleton, evidence-line divider.
+          arrive("#" + P + "head-claim", B.head_claim, 30, 0.15);
+          arrive("#" + P + "head-test", B.head_test, 30, 0.15);
+          // svg-path-draw (clip-path wipe variant for the dashed stroke): divider draws top→bottom.
+          tl.fromTo("#" + P + "divider", { clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0% 0)", duration: 1.0, ease: "power2.inOut" }, B.skeleton + 0.05);
+          // hairline rules wipe left→right, staggered.
+          for (let i = 0; i <= NR; i++) {
+            tl.fromTo("#" + P + "rule-" + i, { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: 0.6, ease: "power2.out" }, B.skeleton + i * 0.1);
+          }
+          // each row: claim on its sentence start · index numeral on the verb · test fragments as they are said
+          rows.forEach(function (row, i) {
+            const n = i + 1;
+            arrive("#" + P + "c" + n, row.at.claim, 60, 0.18);
+            arrive("#" + P + "idx-" + n, row.at.idx, 40, 0.14);
+            [].concat(row.test).forEach(function (_, j) {
+              const t = (row.at.test || [])[j];
+              arrive("#" + P + "t" + n + "-" + j, t != null ? t : row.at.idx + 0.6 + j * 0.8, 60, 0.18);
+            });
+          });
+          // the statement: lead, then the marked phrase; the accent underline draws while it is said.
+          if (st.lead) arrive("#" + P + "s1", st.at.lead, 70, 0.2);
+          arrive("#" + P + "s2", st.at.mark, 70, 0.2);
+          if (st.mark) tl.fromTo("#" + P + "ul", { clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)", duration: st.at.underline_dur, ease: "power1.inOut" }, st.at.underline);
+
+          window.__timelines["__SCENE_ID__"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

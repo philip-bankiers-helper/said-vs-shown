@@ -1,0 +1,151 @@
+{
+ "voice": "af_heart",
+ "speed": 1.06,
+ "engine": "kokoro-82m",
+ "display": {
+  "Nineteen AI": "19 AI",
+  "October fifth to eighth": "October 5 to 8",
+  "October seventh": "October 7",
+  "from the eighth": "from October 8",
+  "Intelligent U I": "Intelligent UI",
+  "five hundred and twenty-two": "522",
+  "ninety-three percent": "93%",
+  "about fifty-four": "about 54%",
+  "fifty-nine percent": "59%",
+  "sixteen other leads": "16 other leads"
+ },
+ "lines": [
+  {
+   "id": "L1-squeeze",
+   "scene": "squeeze",
+   "gap_after": 0.7,
+   "text": "Nineteen AI developments, October fifth to eighth. Three of them passed very different tests. Here's what each one proves, and where the evidence stops.",
+   "claims": [
+    "brief:candidate-map",
+    "ledger:story1-3"
+   ]
+  },
+  {
+   "id": "L2-receipt",
+   "scene": "math-receipt",
+   "gap_after": 0.7,
+   "text": "First, math. OpenAI published manuscripts it says were produced by an unreleased internal model. Some come with proofs written in Lean, a language a computer can check.",
+   "claims": [
+    "story1:c01",
+    "story1:c02(company_claim)",
+    "story1:c03",
+    "story1:c05",
+    "story1:c06"
+   ]
+  },
+  {
+   "id": "L3-boundary",
+   "scene": "math-boundary",
+   "gap_after": 0.9,
+   "text": "A passing check proves one thing: the argument establishes its exact formal statement. Not that the result is new, or that it matters, or that the statement matches the paper's claim. And OpenAI itself warns that some unformalized results could have issues.",
+   "claims": [
+    "story1:c12",
+    "brief:story1-limit",
+    "risk:lean-scope"
+   ]
+  },
+  {
+   "id": "L4-board1",
+   "scene": "board-1",
+   "gap_after": 0.5,
+   "text": "That's test one. Next: interfaces.",
+   "claims": []
+  },
+  {
+   "id": "L5-ui-receipt",
+   "scene": "ui-receipt",
+   "gap_after": 0.7,
+   "text": "On October seventh, OpenAI's release notes introduced Intelligent U I in ChatGPT. An answer can now combine text, visuals and interactive elements, from side-by-side comparisons to tools like calculators you use right in the chat. Here's an illustration, not ChatGPT's output: drag one input, and you watch the result move. That teaches differently than a paragraph.",
+   "claims": [
+    "story2:c01(fixed)",
+    "story2:c02",
+    "story2:c04",
+    "story2:c06",
+    "brief:story2-visual(illustration)"
+   ]
+  },
+  {
+   "id": "L6-ui-boundary",
+   "scene": "ui-boundary",
+   "gap_after": 0.9,
+   "text": "What does the release establish? That OpenAI shipped it, rolling out from October seventh to Plus, Pro, Business and Enterprise, with Free and Go scheduled from the eighth. What it doesn't establish: that these answers are more accurate, or easier to learn from. That takes testing. And a persuasive interface can still hold a wrong answer.",
+   "claims": [
+    "story2:c10(fixed)",
+    "story2:c11(fixed: scheduled)",
+    "story2:c18",
+    "story2:c20(editorial)"
+   ],
+   "speed": 1.0
+  },
+  {
+   "id": "L7-board2",
+   "scene": "board-2",
+   "gap_after": 0.5,
+   "text": "That's test two. Last: vision.",
+   "claims": []
+  },
+  {
+   "id": "L8-hss-receipt",
+   "scene": "hss-receipt",
+   "gap_after": 0.7,
+   "text": "Also on October seventh, Scale Labs and Elorian published Humanity's Sixth Sense: five hundred and twenty-two image and video tasks that ask what a scene implies, not just what's in it. The authors report people at ninety-three percent, and the top model at launch at about fifty-four. One kind of inference involved, as an illustration: two things overlapping in a picture doesn't, on its own, show they touch.",
+   "claims": [
+    "story3:c01",
+    "story3:c02",
+    "story3:c03",
+    "story3:c13(fixed)",
+    "story3:c07",
+    "story3:c15(fixed, illustration)"
+   ],
+   "speed": 1.0
+  },
+  {
+   "id": "L9-hss-boundary",
+   "scene": "hss-boundary",
+   "gap_after": 0.9,
+   "text": "What does it show? On these tasks, as graded, the top model sat well below people. What it doesn't show is a ranking of general intelligence. The tasks were filtered for unanimous human agreement, the videos were silent, an AI judge did the grading, and the fifty-nine percent result with tools came from a smaller subset, so it isn't directly comparable.",
+   "claims": [
+    "story3:c07",
+    "story3:c12",
+    "story3:c21",
+    "story3:c17",
+    "story3:c18",
+    "story3:c25",
+    "story3:c26(fixed)"
+   ],
+   "speed": 1.0
+  },
+  {
+   "id": "L10-payoff",
+   "scene": "payoff",
+   "gap_after": 0.8,
+   "text": "Three results, three different tests. A math claim can be checked by a formal proof. An interface needs tests of whether it helps, and whether it's right. Visual reasoning needs tasks like the situations a system will actually meet. Passing one doesn't settle the others.",
+   "claims": [
+    "brief:editorial-payoff"
+   ]
+  },
+  {
+   "id": "L11-onething",
+   "scene": "one-thing",
+   "gap_after": 0.8,
+   "text": "So the next time an AI claim crosses your desk, ask one question: which test did it actually pass?",
+   "claims": [
+    "editorial"
+   ],
+   "speed": 0.94
+  },
+  {
+   "id": "L12-close",
+   "scene": "close",
+   "gap_after": 7.0,
+   "text": "That's the dose. Every source, and the sixteen other leads, are on the companion page.",
+   "claims": [],
+   "speed": 1.0
+  }
+ ]
+}

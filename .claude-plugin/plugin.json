@@ -1,0 +1,10 @@
+{
+  "name": "said-vs-shown",
+  "version": "0.1.0",
+  "description": "Turn a research brief into an evidence-first explainer video: every claim shown on a capture of its real source with the quote highlighted as it's spoken, each story closed on PROVES / DOESN'T PROVE. Local, free stack (HyperFrames, Kokoro, Parakeet); no API keys.",
+  "author": { "name": "Philip Bankier" },
+  "license": "MIT",
+  "homepage": "https://github.com/philipbankier/said-vs-shown",
+  "repository": "https://github.com/philipbankier/said-vs-shown",
+  "keywords": ["video", "explainer", "fact-check", "receipts", "hyperframes", "evidence"]
+}

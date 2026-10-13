@@ -1,0 +1,14 @@
+# Edition: Markets — PLANNED. First run must be a 25–40 s slice reviewed by the user.
+id: markets
+label: "Markets"
+audience: "operators and investors who follow markets but not every ticker"
+length: { target_s: 180, min_s: 120, max_s: 240 }
+stories: { max: 3, mode: roundup }       # ranked, stop-safe board ("safe to stop" after story 1)
+voice: { engine: kokoro, id: af_heart, speed: 1.06 }
+audio: { music: none, sfx: structural-only }
+design: { accent: "#7FB8A4" }             # placeholder; choose at the slice
+sources:
+  receipts: required-for-every-story
+  numbers: strict                         # every on-screen number: value, unit, date/time, source row — verified by ledger + refuter
+  data_viz: needed                        # new scene kind (chart-story) — build and slice before first use
+youtube_monetization: off                 # sensitive-topic AI personas rule (references/disclosure.md)

@@ -1,0 +1,6 @@
+{
+  "name": "said-vs-shown",
+  "owner": { "name": "Philip Bankier" },
+  "description": "Said vs. Shown: evidence-first explainer videos that show their receipts.",
+  "plugins": [{ "name": "said-vs-shown", "source": "./" }]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "said-vs-shown-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node side of the Said vs. Shown engine (receipt.mjs, doctor.mjs). setup.sh installs these into $SVS_HOME/node.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "dependencies": {
+    "@puppeteer/browsers": "3.2.4",
+    "puppeteer-core": "25.13.0"
+  }
+}

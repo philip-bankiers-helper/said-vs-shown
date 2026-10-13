@@ -1,0 +1,103 @@
+{
+ "lead_in": 0.35,
+ "lines": [
+  {
+   "id": "L1-squeeze",
+   "scene": "squeeze",
+   "start": 0.35,
+   "dur": 8.64,
+   "wpm": 167
+  },
+  {
+   "id": "L2-receipt",
+   "scene": "math-receipt",
+   "start": 9.69,
+   "dur": 10.645,
+   "wpm": 152
+  },
+  {
+   "id": "L3-boundary",
+   "scene": "math-boundary",
+   "start": 21.035,
+   "dur": 16.448,
+   "wpm": 153
+  },
+  {
+   "id": "L4-board1",
+   "scene": "board-1",
+   "start": 38.383,
+   "dur": 2.581,
+   "wpm": 116
+  },
+  {
+   "id": "L5-ui-receipt",
+   "scene": "ui-receipt",
+   "start": 41.464,
+   "dur": 23.616,
+   "wpm": 142
+  },
+  {
+   "id": "L6-ui-boundary",
+   "scene": "ui-boundary",
+   "start": 65.78,
+   "dur": 20.181,
+   "wpm": 166
+  },
+  {
+   "id": "L7-board2",
+   "scene": "board-2",
+   "start": 86.861,
+   "dur": 2.069,
+   "wpm": 145
+  },
+  {
+   "id": "L8-hss-receipt",
+   "scene": "hss-receipt",
+   "start": 89.43,
+   "dur": 24.32,
+   "wpm": 168
+  },
+  {
+   "id": "L9-hss-boundary",
+   "scene": "hss-boundary",
+   "start": 114.45,
+   "dur": 21.291,
+   "wpm": 172
+  },
+  {
+   "id": "L10-payoff",
+   "scene": "payoff",
+   "start": 136.641,
+   "dur": 16.043,
+   "wpm": 168
+  },
+  {
+   "id": "L11-onething",
+   "scene": "one-thing",
+   "start": 153.484,
+   "dur": 6.315,
+   "wpm": 181
+  },
+  {
+   "id": "L12-close",
+   "scene": "close",
+   "start": 160.599,
+   "dur": 4.949,
+   "wpm": 182
+  }
+ ],
+ "cuts": [
+  9.33,
+  20.68,
+  38.02,
+  41.1,
+  65.42,
+  86.5,
+  89.07,
+  114.09,
+  136.28,
+  153.12,
+  160.24
+ ],
+ "total": 172.548
+}

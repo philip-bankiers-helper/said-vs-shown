@@ -1,0 +1,11 @@
+{
+  "name": "said-vs-shown-episode",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes hyperframes@0.8.147 preview",
+    "check": "npx --yes hyperframes@0.8.147 check",
+    "snapshot": "npx --yes hyperframes@0.8.147 snapshot",
+    "render": "npx --yes hyperframes@0.8.147 render"
+  }
+}
