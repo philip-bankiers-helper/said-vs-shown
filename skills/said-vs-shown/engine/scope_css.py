@@ -132,6 +132,9 @@ def scope_file(path, check=False):
 
 
 def main(argv):
+    if argv and argv[0] in ('-h', '--help'):
+        print(__doc__.strip())
+        return 0
     check = '--check' in argv
     paths = [a for a in argv if a != '--check']
     if not paths:

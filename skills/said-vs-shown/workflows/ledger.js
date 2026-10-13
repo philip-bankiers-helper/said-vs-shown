@@ -10,7 +10,8 @@ export const meta = {
 //         stories: [{ id: "story1", title: "...", srcs: "S01, S06" }],
 //         lead_batches: [["4","5","6","7"], ...],
 //         source_map: "S01 example.com/page · S02 ..." }
-// Without the Workflow tool: run the same prompts below as parallel subagents (verifier per story, then refuter per story; lead checkers in parallel).
+// Agent-neutral copy of these prompts (subagents or one pass at a time): references/ledger-prompts.md. Keep both in sync.
+// Save the result's `stories` as ledger/claims.json and its `leads` as ledger/leads.json.
 const A = args || {}
 const EP = A.episode, CAP = EP + '/ledger/capture', BRIEF = EP + '/input/brief.md'
 
@@ -53,7 +54,7 @@ const storyRuns = pipeline(A.stories || [],
   s => agent(`${CTX}\n\nTASK: Verify the brief's story "${s.title}" (sources ${s.srcs}). Break it into atomic claims a narrator might say (what happened, dates, numbers, availability, meaning, stated limits). Find exact support for each. Propose 2-4 receipt_candidates: short verbatim sentences visually prominent on the page (name the screenshot). Return story_id "${s.id}".`,
     { label: `verify:${s.id}`, phase: 'Verify', schema: STORY }),
   (res, s) => res && agent(`${CTX}\n\nTASK (ADVERSARIAL): Try to REFUTE each claim in this ledger for "${s.title}": (1) grep -F the quote — verbatim? (2) does it support the claim IN CONTEXT? (3) is the status right (a vendor's own performance number is company_claim; future availability is not availability)? Default upheld=false when uncertain. List narration_risks.\nLEDGER:\n${JSON.stringify(res, null, 1)}`,
-    { label: `refute:${s.id}`, phase: 'Refute', schema: REFUTE }).then(v => ({ ledger: res, refute: v })))
+    { label: `refute:${s.id}`, phase: 'Refute', schema: REFUTE }).then(v => ({ story_id: s.id, ledger: res, refute: v })))
 const leadRuns = parallel((A.lead_batches || []).map(ids => () => agent(`${CTX}\n\nTASK: For the brief's other leads ${ids.join(', ')}, produce companion-page cards: check each key fact and date against its capture; use older_background for items older than the episode window; leads without a URL are provider_only. Neutral wording; keep the brief's cautions.`,
   { label: `leads:${ids[0]}-${ids[ids.length - 1]}`, phase: 'Verify', schema: LEADS })))
 const [stories, leads] = await Promise.all([storyRuns, leadRuns])

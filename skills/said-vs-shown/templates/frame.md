@@ -27,7 +27,7 @@ Only `--accent` (and `--accent-wash`, the same color at 0.42) changes per editio
 | AI | `#F2C14E` | highlighter amber |
 | Markets (planned) | set at the edition's first slice | |
 
-The scene templates are authored in AI amber. `engine/fill_scenes.py` swaps `#f2c14e` / `242, 193, 78` for the episode's accent, read from the `--accent` row above.
+The scene templates are authored in AI amber. `engine/new_episode.py` writes the edition's accent (`editions/<edition>.yaml` → `design.accent`) into the `--accent` row above, and `engine/fill_scenes.py` swaps `#f2c14e` / `242, 193, 78` for it.
 
 ## Type
 
@@ -75,7 +75,7 @@ Glyph CSS: 13–15px square, 2px `--paper` border; CHECKED filled `--paper`; COM
 
 ## Layout
 
-- Safe area: 120px sides, 80px top. Caption zone: y 920–1040. Nothing else lives there.
+- Safe area: 120px sides, 80px top. Caption band: y 920–1080 (captions sit at 920–1040). Nothing else lives there.
 - Meta strip top-left (kicker) and top-right (source chip), mono.
 - Edge-anchored compositions; no centered floating stacks except the Squeeze story row.
 
@@ -84,6 +84,7 @@ Glyph CSS: 13–15px square, 2px `--paper` border; CHECKED filled `--paper`; COM
 - Arrivals: waterfall-entry (binary opacity, power4.out). Group moves: nudge-curve. Camera: coordinate-target-zoom (power3.inOut, 1.2–1.6s). Lines: svg-path-draw.
 - One transition family between stories: hard cut inside the episode; no wipes, no glitch.
 - Ambient: a single accent radial glow breathing (sine-wave-loop), hairline ledger rules at 12%. Never more.
+- Motion names are rule files in the `hyperframes-animation` skill (`rules/<name>.md`). Without that skill, copy the implementations in the Said vs. Shown skill's `templates/scenes/*.html`.
 
 ## Sound
 

@@ -13,7 +13,14 @@ import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log('usage: node doctor.mjs [--no-smoke]\n  Checks what setup.sh installs (PASS / WARN / FAIL, each with a fix), then a ~1 s Kokoro TTS smoke test.\n  --no-smoke  skip the smoke test. Exit 1 on any FAIL.')
+  process.exit(0)
+}
+
 const ENGINE = path.dirname(fileURLToPath(import.meta.url))
+// fix hints carry the absolute path, so they work from any working directory
+const SETUP = `sh "${path.join(ENGINE, 'setup.sh')}"`
 const CONFIG = JSON.parse(fs.readFileSync(path.join(ENGINE, 'config.json'), 'utf8'))
 const PKG = JSON.parse(fs.readFileSync(path.join(ENGINE, 'package.json'), 'utf8'))
 const expandHome = p => (p === '~' || p.startsWith('~/') || p.startsWith('~\\') ? path.join(os.homedir(), p.slice(1)) : p)
@@ -106,7 +113,7 @@ let puppeteer = null
     try {
       puppeteer = createRequire(base)('puppeteer-core')
     } catch {}
-  } else report('FAIL', 'node deps', bad.join('; '), 'sh engine/setup.sh')
+  } else report('FAIL', 'node deps', bad.join('; '), SETUP)
 }
 
 // 6. Chrome (same lookup as receipt.mjs) + a real headless launch
@@ -116,7 +123,7 @@ let puppeteer = null
   try {
     exe = await findChrome()
   } catch (e) {
-    report('FAIL', 'chrome', e.message.split('. ')[0], 'sh engine/setup.sh (or set CHROME_PATH)')
+    report('FAIL', 'chrome', e.message.split('. ')[0], `${SETUP} (or set CHROME_PATH)`)
   }
   if (exe && puppeteer) {
     try {
@@ -129,7 +136,7 @@ let puppeteer = null
       if (txt === 'said vs shown') report('PASS', 'chrome', exe)
       else report('FAIL', 'chrome', `${exe} launched but did not render`, 'set CHROME_PATH to another Chrome')
     } catch (e) {
-      report('FAIL', 'chrome', `${exe}: ${e.message.split('\n')[0]}`, 'set CHROME_PATH to a working Chrome, or sh engine/setup.sh')
+      report('FAIL', 'chrome', `${exe}: ${e.message.split('\n')[0]}`, `set CHROME_PATH to a working Chrome, or ${SETUP}`)
     }
   } else if (exe) report('WARN', 'chrome', `${exe} (launch not tested: node deps missing)`)
 }
@@ -152,7 +159,7 @@ let kokoroPy = null
   )
   const py = fromEnv || venv
   if (!py) {
-    report('FAIL', 'kokoro venv', `no ${path.join(SVS_HOME, 'kokoro')} and HYPERFRAMES_PYTHON unset`, 'sh engine/setup.sh')
+    report('FAIL', 'kokoro venv', `no ${path.join(SVS_HOME, 'kokoro')} and HYPERFRAMES_PYTHON unset`, SETUP)
   } else {
     const r = sh(py, ['-c', 'import kokoro_onnx, soundfile, espeakng_loader as e; print(e.get_data_path())'])
     const src = fromEnv ? 'HYPERFRAMES_PYTHON' : '$SVS_HOME/kokoro'
@@ -173,8 +180,8 @@ if (hfOk) {
   const models = lastJson(r.out)?.models ?? []
   const has = e => models.some(m => m.engine === e && m.installed)
   if (has('parakeet')) report('PASS', 'asr', 'parakeet installed')
-  else if (has('whisper')) report('PASS', 'asr', 'whisper small.en (parakeet not installed: sh engine/setup.sh --with-parakeet)')
-  else report('WARN', 'asr', 'no model yet: Whisper small.en (~470 MB) downloads on first transcription', 'sh engine/setup.sh --with-parakeet')
+  else if (has('whisper')) report('PASS', 'asr', `whisper small.en (parakeet not installed: ${SETUP} --with-parakeet)`)
+  else report('WARN', 'asr', 'no model yet: Whisper small.en (~470 MB) downloads on first transcription', `${SETUP} --with-parakeet`)
 }
 
 // 10. HyperFrames skills
@@ -206,6 +213,8 @@ if (process.platform === 'darwin') {
 if (!SMOKE) report('WARN', 'tts smoke', 'skipped (--no-smoke)')
 else if (!hfOk || !kokoroPy) report('FAIL', 'tts smoke', 'skipped: needs hyperframes and the kokoro venv (see above)')
 else {
+  if (!fs.existsSync(path.join(os.homedir(), '.cache', 'hyperframes', 'tts', 'models', 'kokoro-v1.0.onnx')))
+    console.log('      first run: downloading the Kokoro model (~340 MB) for the smoke test; this can take a few minutes')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'svs-doctor-'))
   const wav = path.join(dir, 'smoke.wav')
   const env = { ...process.env, HYPERFRAMES_PYTHON: kokoroPy }

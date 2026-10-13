@@ -115,7 +115,7 @@
         <div id="__P__zoom-outer" data-layout-allow-overflow="true">
           <div id="__P__zoom-inner">
             <div id="__P__frame">
-              <div id="__P__chrome"><span class="rc-dot"></span><span class="rc-dot"></span><span class="rc-dot"></span><span id="__P__url" data-layout-allow-overlap="true" data-layout-allow-occlusion="true"></span><!-- the kicker covers the bar when the camera pushes in --></div>
+              <div id="__P__chrome"><span class="rc-dot"></span><span class="rc-dot"></span><span class="rc-dot"></span><span id="__P__url" data-layout-allow-overlap="true" data-layout-allow-occlusion="true"></span><!-- the URL fades out while the camera is pushed in --></div>
               <div id="__P__page">
                 <img id="__P__shot" alt=""><!-- src + alt come from CFG.receipt -->
                 <!-- highlighter bars (.rc-hl) are created from CFG.receipt.lines -->
@@ -250,6 +250,8 @@
           // the camera pushes in to the sentence
           tl.fromTo("#" + P + "zoom-outer", { scale: 1 }, { scale: ZOOM, duration: CFG.camera.dur, ease: "power3.inOut" }, CFG.camera.at);
           tl.fromTo("#" + P + "zoom-inner", { x: 0, y: 0 }, { x: -OFF_X, y: -OFF_Y, duration: CFG.camera.dur, ease: "power3.inOut" }, CFG.camera.at);
+          // the browser bar's URL would poke out behind the kicker while pushed in: fade it with the camera
+          tl.fromTo("#" + P + "url", { opacity: 1 }, { opacity: 0, duration: 0.25, ease: "power1.out" }, CFG.camera.at);
 
           // the highlighter sweeps each line as its words are said
           CFG.highlight.forEach(function (h, i) {
@@ -263,6 +265,9 @@
           });
 
           const A = CFG.after;
+          if (A.mode === "pullback" || A.mode === "illustration") {
+            tl.fromTo("#" + P + "url", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.in", immediateRender: false }, A.at + A.dur * 0.5);
+          }
           if (A.mode === "pullback") {
             // back out to the whole page; the highlight stays on
             tl.to("#" + P + "zoom-outer", { scale: 1, duration: A.dur, ease: "power3.inOut" }, A.at);

@@ -1,5 +1,6 @@
 {
   "hyperframes": "0.8.147",
+  "gsap": "3.14.2",
   "voice": "af_heart",
   "speed": 1.06,
   "lufs": -16,

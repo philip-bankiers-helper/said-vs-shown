@@ -10,13 +10,16 @@
 #   --no-telemetry    run `hyperframes telemetry disable` (a global HyperFrames setting). Without
 #                     it the telemetry status is printed and left alone
 #
-# Everything goes under $SVS_HOME (default: "home" in config.json, ~/.said-vs-shown). Keep that path
-# short: espeak (inside Kokoro) breaks on data paths over ~160 characters.
+# Everything except the HyperFrames agent skills goes under $SVS_HOME (default: "home" in config.json,
+# ~/.said-vs-shown). Keep that path short: espeak (inside Kokoro) breaks on data paths over ~160 characters.
 #   $SVS_HOME/node     puppeteer-core + @puppeteer/browsers, pinned in engine/package.json
 #   $SVS_HOME/kokoro   Python 3.12 venv with kokoro-onnx + soundfile (skipped if $HYPERFRAMES_PYTHON already has them)
 #   $SVS_HOME/chrome   chrome-headless-shell, only when no usable Chrome exists
-# Through npx hyperframes@<config.json version>: `skills update`, and the optional steps above.
-# Next step afterwards: node engine/doctor.mjs
+# Through npx hyperframes@<config.json version>: `skills update`, which installs or overwrites the HyperFrames
+# agent skills (latest from GitHub) in ~/.claude/skills and ~/.agents/skills and links them into the skill
+# folders of other agents it finds (~/.cursor, ~/.gemini, ~/.config/opencode, ~/.codeium/windsurf); and the
+# optional steps above. Without a terminal its output goes to $SVS_HOME/skills-update.log.
+# Next step afterwards: node <this folder>/doctor.mjs
 set -eu
 
 DIR=$(cd "$(dirname "$0")" && pwd)
@@ -85,11 +88,13 @@ say ""
 say "SVS_HOME = $SVS_HOME   (override with SVS_HOME=...)"
 say "HyperFrames $HF_VER · puppeteer-core $PUP_VER · @puppeteer/browsers $BRO_VER"
 say "Disk, worst case on a fresh machine:"
-say "   ~20 MB   $NODE_DIR (puppeteer-core, @puppeteer/browsers)"
+say "   ~35 MB   $NODE_DIR (puppeteer-core, @puppeteer/browsers)"
 say "  ~150 MB   $KOKORO (Python 3.12 venv; uv may also fetch a Python 3.12 build, ~40 MB)"
 say "  ~340 MB   Kokoro model + voices, fetched by HyperFrames into ~/.cache/hyperframes on the first TTS"
 say "  ~120 MB   HyperFrames CLI in the npm/npx cache (+ ~390 MB of its own Chrome on the first capture/render)"
 say "  ~200 MB   $SVS_HOME/chrome, only if no usable Chrome is found"
+say "   ~11 MB   HyperFrames agent skills (latest from GitHub) -> ~/.claude/skills and ~/.agents/skills, linked into"
+say "            ~/.cursor, ~/.gemini, ~/.config/opencode, ~/.codeium/windsurf skill folders when those agents exist"
 if [ "$PARAKEET" = 1 ]; then
   say "  ~640 MB   Parakeet ASR model (--with-parakeet), in ~/.cache/hyperframes"
 else
@@ -130,7 +135,21 @@ fi
 
 # --- 3. HyperFrames skills --------------------------------------------------------------------
 step "3/6 HyperFrames agent skills (npx $HF skills update)"
-run npx -y "$HF" skills update < /dev/null
+if [ -t 1 ] || [ "$DRY" = 1 ]; then
+  run npx -y "$HF" skills update < /dev/null
+else
+  # no terminal (e.g. an agent ran this): keep the CLI's spinner frames out of the output
+  LOG="$SVS_HOME/skills-update.log"
+  mkdir -p "$SVS_HOME"
+  say "   \$ npx -y $HF skills update   (output: $LOG)"
+  ESC=$(printf '\033')
+  if npx -y "$HF" skills update < /dev/null > "$LOG" 2>&1; then
+    sed "s/$ESC\[[0-9;]*[A-Za-z]//g" "$LOG" | grep -E 'Installed|updated|Linked|up to date' | tail -n 3 | sed 's/^/   /' || true
+  else
+    sed "s/$ESC\[[0-9;]*[A-Za-z]//g" "$LOG" | tail -n 20
+    exit 1
+  fi
+fi
 
 # --- 4. ASR model -----------------------------------------------------------------------------
 step "4/6 speech recognition"
@@ -143,7 +162,7 @@ fi
 # --- 5. Chrome for receipts -------------------------------------------------------------------
 step "5/6 Chrome for receipt.mjs"
 if CHROME=$(node "$DIR/receipt.mjs" --find-chrome 2>/dev/null); then
-  say "   using $CHROME"
+  if [ "$DRY" = 1 ]; then say "   would use $CHROME (the final choice is made after step 1 installs puppeteer)"; else say "   using $CHROME"; fi
 else
   BUILD=$(node -e '
 try { console.log(require("module").createRequire(process.argv[1])("puppeteer-core").PUPPETEER_REVISIONS["chrome-headless-shell"]) }

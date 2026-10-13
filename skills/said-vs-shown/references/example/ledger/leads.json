@@ -1,0 +1,30 @@
+[
+ {
+  "lead_id": "2",
+  "title": "Batching and nondeterministic LLM inference",
+  "card_title": "Deterministic inference",
+  "date": "2025-09-10 (research); 2026-10-07 debate provider-reported",
+  "one_liner": "Thinking Machines' September 2025 post links temperature-zero output variation to load-dependent batch sizes and proposes batch-invariant kernels.",
+  "caution": "Older research; temperature zero alone isn't a guarantee.",
+  "status": "older_background",
+  "source_ids": [
+   "S03"
+  ],
+  "quote": "the primary reason nearly all LLM inference endpoints are nondeterministic is that the load (and thus batch-size) nondeterministically varies!",
+  "discrepancies": "The page shows 'Sep 10, 2025'. No captured page records the October 7 debate (provider only)."
+ },
+ {
+  "lead_id": "3",
+  "title": "Cortex Harness: remote human guidance for robots",
+  "card_title": "Cortex Harness",
+  "date": "2026-10-06",
+  "one_liner": "Cortex Robot announced Cortex Harness: operators steer robot models by prompt or VR takeover, and interventions become recovery data.",
+  "caution": "Curated demos and waitlist; no intervention rates or post-retraining autonomy gains shown.",
+  "status": "company_claim",
+  "source_ids": [
+   "S04"
+  ],
+  "quote": "We’re excited to announce Cortex Harness, a platform for running AI models on real robots with remote human guidance.",
+  "discrepancies": "Access is through a beta waitlist, not general availability."
+ }
+]

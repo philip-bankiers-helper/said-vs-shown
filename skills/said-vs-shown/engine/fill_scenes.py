@@ -27,7 +27,10 @@ import os
 import re
 import sys
 
-SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ENGINE = os.path.dirname(os.path.abspath(__file__))
+SKILL = os.path.dirname(ENGINE)
+sys.path.insert(0, ENGINE)
+from companion import disclosure_of  # noqa: E402  (one disclosure rule for the video and the page)
 TEMPLATES = os.path.join(SKILL, 'templates', 'scenes')
 KINDS = ('squeeze', 'payoff', 'one-thing', 'close')
 DEFAULT_ACCENT = '#f2c14e'
@@ -248,6 +251,11 @@ class Episode:
                           'badge': self.badge(s.get('badge'), f'stories[{i}]')})
         for L in self.leads:
             lid = str(L.get('lead_id', ''))
+            status = str(over.get(lid) or L.get('status') or '').strip().lower()
+            if status in ('contradicted', 'unverifiable'):
+                self.notes.append(f'lead {lid}: {status} leads get no squeeze card (no video badge); the companion page '
+                                  'lists them. Set lead_badge_overrides to show it with another badge')
+                continue
             title = L.get('card_title')
             if not title:
                 title, cut = short_title(L.get('title') or f'Lead {lid}')
@@ -277,19 +285,10 @@ class Episode:
         return n
 
     def disclosure(self):
-        E = self.E
-        reviewer = E.get('reviewed_by')
-        d = E.get('disclosure')
-        if d:
-            if 'reviewed by' in d and not reviewer:
-                self.notes.append('disclosure says "reviewed by" but episode.json has no reviewed_by yet: printed as '
-                                  '"not yet human-reviewed"; re-run fill_scenes.py after the review (stage 10)')
-                d = re.sub(r'reviewed by [^·]+', 'not yet human-reviewed', d).strip()
-            return d
-        tail = f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed'
-        if not reviewer:
-            self.notes.append('no reviewed_by yet: the disclosure reads "not yet human-reviewed"; re-run after the review (stage 10)')
-        return ' · '.join(['AI-produced', 'AI voice', 'every claim sourced', tail])
+        if not str(self.E.get('reviewed_by') or '').strip():
+            self.notes.append('no reviewed_by yet: the disclosure reads "not yet human-reviewed"; after the review '
+                              '(stage 10) set reviewed_by and re-run fill_scenes.py --only close')
+        return disclosure_of(self.E)
 
 
 # ── scene builders ───────────────────────────────────────────────────────────────────────────────
@@ -326,7 +325,7 @@ def build_squeeze(ep, W, bt):
         'meta': ep.meta(),
         'leads': cards,
         'stories': K,
-        'total_leads': len(cards),
+        'total_leads': len(ep.stories) + len(ep.leads),  # every lead reviewed, carded or not
         'beats': {'cards': t_cards, 'squeeze': sq, 'tests': tests, 'boundary': boundary},
     }
 

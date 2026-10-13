@@ -20,8 +20,8 @@
 // A file:// url under an episode is stored relative (capture/Sxx/extracted/page.html), never
 // as an absolute path.
 //
-// Chrome lookup order: $CHROME_PATH, installs under $SVS_HOME/chrome, ~/.cache/puppeteer,
-// then common system Chrome/Chromium paths. puppeteer-core is resolved from $SVS_HOME/node
+// Chrome lookup order: $CHROME_PATH, installs under $SVS_HOME/chrome, the build pinned by our puppeteer-core in
+// ~/.cache/puppeteer (other builds there are ignored), then common system Chrome/Chromium paths. puppeteer-core is resolved from $SVS_HOME/node
 // (installed by setup.sh), falling back to a local `npm i` in this folder.
 
 import fs from 'node:fs'
@@ -105,20 +105,24 @@ export async function findChrome() {
     throw new Error(`CHROME_PATH is set but does not exist: ${process.env.CHROME_PATH}`)
   }
   const browsers = requireDep('@puppeteer/browsers')
-  const candidates = [
-    ...(await installedIn(browsers, path.join(SVS_HOME, 'chrome'))),
-    ...(await installedIn(browsers, path.join(os.homedir(), '.cache', 'puppeteer'))),
-    ...systemChromes(),
-  ]
+  // ~/.cache/puppeteer is shared with other projects: use only the build our puppeteer-core pins, so a stale
+  // build left there by something else never wins over a current system Chrome
+  const pinned = requireDep('puppeteer-core')?.PUPPETEER_REVISIONS?.['chrome-headless-shell']
+  const shared = pinned
+    ? (await installedIn(browsers, path.join(os.homedir(), '.cache', 'puppeteer'))).filter(p => p.includes(pinned))
+    : []
+  const candidates = [...(await installedIn(browsers, path.join(SVS_HOME, 'chrome'))), ...shared, ...systemChromes()]
   if (candidates.length) return candidates[0]
   throw new Error(
-    'No usable Chrome found. Run engine/setup.sh (installs chrome-headless-shell into $SVS_HOME/chrome), ' +
+    `No usable Chrome found. Run: sh "${path.join(ENGINE, 'setup.sh')}" (installs chrome-headless-shell into $SVS_HOME/chrome), ` +
       'or set CHROME_PATH to a Chrome/Chromium executable.'
   )
 }
 
 // --- url handling -----------------------------------------------------------------------------
 function toNavigable(u) {
+  // file://<relative path> is not a valid file URL (its first segment would be read as a host): resolve it
+  if (/^file:\/\/[^/]/i.test(u) && fs.existsSync(decodeURIComponent(u.slice(7)))) return pathToFileURL(path.resolve(decodeURIComponent(u.slice(7)))).href
   if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return u
   if (fs.existsSync(u)) return pathToFileURL(path.resolve(u)).href
   return u
@@ -160,11 +164,24 @@ async function main() {
         anchor: { type: 'string', default: '0.42' },
         nojs: { type: 'string' },
         'find-chrome': { type: 'boolean', default: false },
+        help: { type: 'boolean', short: 'h', default: false },
       },
     }))
   } catch (e) {
     console.error(e.message)
     process.exit(2)
+  }
+
+  if (opts.help) {
+    console.log(
+      'usage: node receipt.mjs --url <u> --quote "<verbatim text>" --out <Rnn-name.png>\n' +
+        '         [--width 1440] [--height 900] [--scale 2] [--anchor 0.42] [--nojs 1]\n' +
+        '       node receipt.mjs --find-chrome        print the Chrome this tool would use\n' +
+        '--url takes a web URL, a plain path to a saved page.html, or an absolute file:// URL.\n' +
+        '--nojs 1 renders a saved capture as static HTML (only captures this project already obtained).\n' +
+        'Writes <out>.png and <out>.json (found, lines, viewport, status). Exit 0 found, 1 not found, 2 usage/setup.'
+    )
+    process.exit(0)
   }
 
   if (opts['find-chrome']) {
@@ -188,7 +205,7 @@ async function main() {
 
   const puppeteer = requireDep('puppeteer-core')
   if (!puppeteer) {
-    console.error(`puppeteer-core not found in ${path.join(SVS_HOME, 'node')}. Run engine/setup.sh (or npm i in ${ENGINE}).`)
+    console.error(`puppeteer-core not found in ${path.join(SVS_HOME, 'node')}. Run: sh "${path.join(ENGINE, 'setup.sh')}" (or npm i in ${ENGINE}).`)
     process.exit(2)
   }
   let executablePath

@@ -90,7 +90,9 @@ def kokoro_env(cfg):
             env['HYPERFRAMES_PYTHON'] = p
             return env
     print('voice.py: warning: no Kokoro venv in %s and HYPERFRAMES_PYTHON is unset; HyperFrames will look for a '
-          'python with kokoro-onnx on PATH (run engine/setup.sh)' % os.path.join(cfg['home'], 'kokoro'), file=sys.stderr)
+          'python with kokoro-onnx on PATH (run: sh %s)' % (os.path.join(cfg['home'], 'kokoro'),
+                                                         os.path.join(os.path.dirname(os.path.abspath(__file__)), 'setup.sh')),
+          file=sys.stderr)
     return env
 
 

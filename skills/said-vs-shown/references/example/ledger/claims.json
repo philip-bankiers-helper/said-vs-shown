@@ -1,0 +1,113 @@
+[
+ {
+  "story_id": "story1",
+  "ledger": {
+   "story_id": "story1",
+   "claims": [
+    {
+     "claim_id": "c01",
+     "text": "OpenAI released mathematical manuscripts, with supporting proof artifacts, produced by an internal OpenAI model.",
+     "kind": "event",
+     "status": "verified",
+     "source_ids": [
+      "S01",
+      "S02"
+     ],
+     "quote": "This repository contains mathematical manuscripts and supporting proof artifacts produced by an internal OpenAI model.",
+     "notes": "First sentence of the S01 README. S02 says the same in its lead paragraph."
+    },
+    {
+     "claim_id": "c02",
+     "text": "Some of the results have Lean formalizations, but not all of them.",
+     "kind": "availability",
+     "status": "verified",
+     "source_ids": [
+      "S01",
+      "S02"
+     ],
+     "quote": "Not all have accompanying Lean formalizations.",
+     "notes": "S02 says 'formalizations of many of the proofs in Lean': many, not most or all."
+    },
+    {
+     "claim_id": "c03",
+     "text": "Lean is a programming language that lets a computer check mathematical proofs.",
+     "kind": "interpretation",
+     "status": "verified",
+     "source_ids": [
+      "S02"
+     ],
+     "quote": "we are sharing formalizations of many of the proofs in Lean, a programming language that allows mathematical proofs to be checked by a computer.",
+     "notes": "OpenAI's own description of Lean."
+    },
+    {
+     "claim_id": "c04",
+     "text": "OpenAI warns that results without formalizations may have issues.",
+     "kind": "limit",
+     "status": "verified",
+     "source_ids": [
+      "S01"
+     ],
+     "quote": "Some of the unformalized results could have issues. We will endeavor to fix any such issues quickly.",
+     "notes": "The source says 'could have issues', not 'may'. The warning is in the repository README, not in the S02 announcement."
+    }
+   ],
+   "receipt_candidates": [
+    {
+     "source_id": "S01",
+     "quote": "This repository contains mathematical manuscripts and supporting proof artifacts produced by an internal OpenAI model.",
+     "claim_ids": [
+      "c01"
+     ],
+     "screenshot": "S01/screenshots/scroll-000.png",
+     "why": "First README sentence, on the first screen under the repository header."
+    },
+    {
+     "source_id": "S01",
+     "quote": "Some of the unformalized results could have issues.",
+     "claim_ids": [
+      "c04"
+     ],
+     "screenshot": "S01/screenshots/scroll-047.png",
+     "why": "OpenAI's own caveat, one short line: the boundary scene's second receipt."
+    }
+   ],
+   "discrepancies": [
+    "The brief says unformalized results 'may have issues'; the README says 'could have issues'.",
+    "The README says 'the vast majority' of results came from the same procedure, with named exceptions; the brief drops that hedge."
+   ]
+  },
+  "refute": {
+   "story_id": "story1",
+   "verdicts": [
+    {
+     "claim_id": "c01",
+     "upheld": false,
+     "problem": "The quote is verbatim and the release is verified, but 'produced by an internal OpenAI model' is OpenAI's own claim about its model, and no source here can check it independently.",
+     "fix": "Split the claim: the release is verified; the provenance is a company_claim. Narrate 'manuscripts it says were produced by an internal model'."
+    },
+    {
+     "claim_id": "c02",
+     "upheld": true,
+     "problem": "Verbatim in S01, in context ('This collection includes results at different stages of verification. Not all have accompanying Lean formalizations.').",
+     "fix": "No change needed. Do not upgrade 'has a Lean formalization' to 'has been machine-verified'."
+    },
+    {
+     "claim_id": "c03",
+     "upheld": true,
+     "problem": "Verbatim in S02. Accurate as background; Lean checks formal proofs of formal statements, not informal arguments.",
+     "fix": "No change needed. Attribute the definition to OpenAI, or say it in the production's own voice."
+    },
+    {
+     "claim_id": "c04",
+     "upheld": true,
+     "problem": "Verbatim in the S01 README. The source says 'could have issues', not 'may'.",
+     "fix": "Say 'could have issues' and attribute it to the repository, not the announcement."
+    }
+   ],
+   "narration_risks": [
+    "Saying the AI 'proved' or 'discovered' results as established fact.",
+    "Calling the collection 'computer-verified': only some results are formalized, and this production ran no Lean check."
+   ]
+  }
+ }
+]

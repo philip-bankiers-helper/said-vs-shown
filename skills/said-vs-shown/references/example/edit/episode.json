@@ -1,0 +1,75 @@
+{
+ "show": "Said vs. Shown",
+ "edition": "AI",
+ "date": "2026-10-08",
+ "window": "Oct 5–8, 2026",
+ "captured": "Oct 11, 2026",
+ "slug": "said-vs-shown-ai-2026-10-08",
+ "title": "A math result you can check",
+ "thesis": "OpenAI's math release passed one kind of test: a formal proof check. That test settles the exact formal statement, not whether the result is new or matters.",
+ "one_thing": "So the next time an AI claim crosses your desk, ask one question: which test did it actually pass?",
+ "one_thing_highlight": "actually pass?",
+ "editor": "",
+ "disclosure": "AI-produced · AI voice · every claim sourced",
+ "credit": true,
+ "lead_badge_overrides": {},
+ "stories": [
+  {
+   "n": "01",
+   "topic": "Math",
+   "date": "Oct 6",
+   "badge": "checked",
+   "card_title": "Math manuscripts",
+   "headline": "OpenAI published math manuscripts, some with proofs a computer can check",
+   "happened": "OpenAI released a public repository of mathematical manuscripts it says were produced by an internal model. Some results come with proofs written in Lean, a language that lets a computer check a proof.",
+   "proves": [
+    "Where a formal proof exists and passes, the argument establishes its exact formal statement."
+   ],
+   "not": [
+    "That a result is new",
+    "That the formal statement matches the paper's claim",
+    "Anything about the unformalized results, which OpenAI itself says could have issues"
+   ],
+   "test": "A formal proof check",
+   "receipts": [
+    {
+     "img": "R01-math-intro",
+     "quote": "This repository contains mathematical manuscripts and supporting proof artifacts produced by an internal OpenAI model.",
+     "source": "github.com/openai/math · README"
+    },
+    {
+     "img": "R02-math-issues",
+     "quote": "Some of the unformalized results could have issues.",
+     "source": "github.com/openai/math · README"
+    }
+   ],
+   "sources": [
+    {
+     "label": "OpenAI, math repository",
+     "url": "https://github.com/openai/math"
+    },
+    {
+     "label": "OpenAI, “Sharing AI progress in mathematics”",
+     "url": "https://openai.com/index/sharing-ai-progress-in-mathematics/"
+    }
+   ],
+   "note": "Repository counts are changing, so the episode leaves them out. This production did not compile the proofs.",
+   "scenes": {
+    "receipt": "math-receipt",
+    "boundary": "math-boundary"
+   }
+  }
+ ],
+ "matrix": [
+  [
+   "A math result",
+   "A formal proof check"
+  ]
+ ],
+ "chapters": {
+  "squeeze": "The squeeze",
+  "math-receipt": "01 · Math",
+  "payoff": "The payoff",
+  "close": "Sources"
+ }
+}

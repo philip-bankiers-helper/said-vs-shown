@@ -4,7 +4,7 @@ This skill never posts. Use this checklist when the user publishes. Platform pol
 
 ## In every video and page
 
-- **Closing card and companion page:** carry `episode.json` → `disclosure`, e.g. "AI-produced · AI voice · every claim sourced · reviewed by <name>". Keep "reviewed by" only if a human actually reviewed the episode (stage 10).
+- **Closing card and companion page:** carry the disclosure line, e.g. "AI-produced · AI voice · every claim sourced · reviewed by <name>". The tools derive its last segment from `episode.json` → `reviewed_by`, which is set only when a human actually reviewed the episode (stage 10); until then it reads "not yet human-reviewed".
 - **Description or caption:** the same line, plus the source list or a link to the companion page.
 
 ## Per platform

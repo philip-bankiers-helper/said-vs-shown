@@ -24,7 +24,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import scope_css  # noqa: E402
 
-GSAP_DEFAULT = '3.14.2'
 
 
 def die(msg):
@@ -56,6 +55,9 @@ def media_dur(f):
 
 
 def main(argv):
+    if argv and argv[0] in ('-h', '--help'):
+        print(__doc__.strip())
+        sys.exit(0)
     if len(argv) != 1:
         die('usage: assemble.py <project_dir>')
     proj = os.path.abspath(argv[0])
@@ -119,7 +121,8 @@ def main(argv):
     if os.path.isfile(os.path.join(proj, 'assets', 'vendor', 'gsap.min.js')):
         gsap_src = 'assets/vendor/gsap.min.js'
     else:
-        gsap_src = f'https://cdn.jsdelivr.net/npm/gsap@{config().get("gsap", GSAP_DEFAULT)}/dist/gsap.min.js'
+        gsap = config().get('gsap') or die('engine/config.json has no "gsap" version (reinstall the skill)')
+        gsap_src = f'https://cdn.jsdelivr.net/npm/gsap@{gsap}/dist/gsap.min.js'
         print(f'assemble.py: warning: GSAP loads from {gsap_src}; offline renders need assets/vendor/gsap.min.js',
               file=sys.stderr)
 

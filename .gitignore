@@ -23,3 +23,5 @@ episodes/
 __pycache__/
 *.pyc
 !skills/said-vs-shown/templates/sfx/*.wav
+# demo output, when the demo is run from the repo
+said-vs-shown-demo/

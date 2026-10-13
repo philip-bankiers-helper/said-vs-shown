@@ -2,7 +2,10 @@
 """deliver.py — turn a rendered master into an episode's deliverables, then QA them.
 
 usage: deliver.py <episode_dir> --master <rendered.mp4> [--poster-at SECONDS] [--repo-url URL]
-                  [--max-mb 15] [--lufs -16] [--no-companion]
+                  [--max-mb 15] [--lufs -16] [--no-companion] [--unreviewed]
+
+Refuses to run until edit/episode.json has "reviewed_by" (the stage 10 review). --unreviewed makes a draft
+delivery anyway; its disclosure then reads "not yet human-reviewed".
 
 Writes only into <episode_dir>/deliver/:
   <slug>.mp4          the master, loudness-normalized (engine/loudfix.sh when present, else inline two-pass loudnorm)
@@ -129,7 +132,8 @@ def write(path, text):
 
 
 def main(argv):
-    opts = {'max_mb': 15.0, 'poster_at': None, 'repo_url': None, 'master': None, 'lufs': None, 'companion': True}
+    opts = {'max_mb': 15.0, 'poster_at': None, 'repo_url': None, 'master': None, 'lufs': None, 'companion': True,
+            'unreviewed': False}
     args = []
     it = iter(argv)
     for a in it:
@@ -145,10 +149,16 @@ def main(argv):
             opts['lufs'] = float(next(it, '-16'))
         elif a == '--no-companion':
             opts['companion'] = False
+        elif a == '--unreviewed':
+            opts['unreviewed'] = True
+        elif a in ('-h', '--help'):
+            print(__doc__.strip())
+            sys.exit(0)
         else:
             args.append(a)
     if len(args) != 1 or not opts['master']:
-        die('usage: deliver.py <episode_dir> --master <rendered.mp4> [--poster-at S] [--repo-url URL] [--max-mb 15] [--lufs -16] [--no-companion]')
+        die('usage: deliver.py <episode_dir> --master <rendered.mp4> [--poster-at S] [--repo-url URL] [--max-mb 15] [--lufs -16] '
+            '[--no-companion] [--unreviewed]')
     ep = os.path.abspath(args[0])
     master = os.path.abspath(opts['master'])
     if not os.path.isfile(master):
@@ -159,6 +169,11 @@ def main(argv):
     cfg = C.config()
     target = opts['lufs'] if opts['lufs'] is not None else float(cfg.get('lufs', -16))
     E = C.load_episode(ep)
+    if not str(E.get('reviewed_by') or '').strip():
+        if not opts['unreviewed']:
+            die('edit/episode.json has no "reviewed_by": the user reviews the episode first (SKILL.md stage 10). '
+                'Pass --unreviewed for a draft delivery (its disclosure says "not yet human-reviewed").')
+        print('deliver.py: warning: no reviewed_by; draft delivery, disclosure reads "not yet human-reviewed"', file=sys.stderr)
     V = os.path.join(ep, 'video')
     tl = C.read_json(os.path.join(V, 'audio', 'timeline.json'))
     scfg = C.read_json(os.path.join(V, 'scenes.json'))

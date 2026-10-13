@@ -199,8 +199,25 @@ def badge(key):
 
 
 def install_line(repo_url):
+    """The page's install line: `npx skills add owner/repo` works for Claude Code and the other Agent Skills agents."""
     m = re.match(r'https?://github\.com/([^/]+/[^/#?]+)', repo_url or '')
-    return f'/plugin marketplace add {m.group(1).removesuffix(".git")}' if m else f'git clone {repo_url}'
+    if not m:
+        return f'git clone {repo_url}'
+    repo = m.group(1)
+    return f'npx skills add {repo[:-4] if repo.endswith(".git") else repo}'
+
+
+DISCLOSURE_BASE = 'AI-produced · AI voice · every claim sourced'
+
+
+def disclosure_of(E):
+    """The disclosure line, its last segment derived from reviewed_by (frame.md → Disclosure line format).
+
+    Whatever episode.json → disclosure says about review is replaced: "reviewed by <reviewed_by>" when a named
+    person reviewed the episode (stage 10), else "not yet human-reviewed"."""
+    base = re.sub(r'\s*·\s*(reviewed by [^·]+|not yet human-reviewed)\s*$', '', str(E.get('disclosure') or '').strip())
+    reviewer = str(E.get('reviewed_by') or '').strip()
+    return (base or DISCLOSURE_BASE) + ' · ' + (f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed')
 
 
 def build(ep_dir, out, video_name=None, repo_url=None, install=None):
@@ -290,7 +307,7 @@ def build(ep_dir, out, video_name=None, repo_url=None, install=None):
     leads_html = (f'''<section aria-label="Other leads"><h2 class="sec">{leads_head}</h2>
     <div class="leads">{''.join(lead_cards)}</div>
   </section>''' if leads else '')
-    disclosure = f'<p class="disc">{esc(E["disclosure"])}</p>' if E.get('disclosure') else ''
+    disclosure = f'<p class="disc">{esc(disclosure_of(E))}</p>'
     footer = (f'''<footer class="credit">
     <span class="mono">Made with <a href="{esc(repo_url)}">{TOOL_NAME}</a></span>
     <a class="url" href="{esc(repo_url)}">{esc(re.sub(r"^https?://", "", repo_url))}</a>

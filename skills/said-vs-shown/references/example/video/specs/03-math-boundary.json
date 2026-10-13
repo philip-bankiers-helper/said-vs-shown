@@ -1,0 +1,67 @@
+{
+ "sid": "math-boundary",
+ "prefix": "mb-",
+ "kicker": {
+  "num": "01",
+  "topic": "Math",
+  "glyph": "checked",
+  "text": "Checked · Oct 6 · OpenAI repository"
+ },
+ "boundary_at": 0.3,
+ "proves": {
+  "header": "Proves",
+  "header_at": 1.0,
+  "lines": [
+   {
+    "html": "The argument establishes",
+    "at": 1.9
+   },
+   {
+    "html": "its <b>exact formal statement</b>.",
+    "at": 3.1
+   }
+  ],
+  "underline_at": 3.5,
+  "underline_dur": 0.8,
+  "subs": []
+ },
+ "nots": {
+  "header": "Doesn't prove",
+  "header_at": 5.0,
+  "rows": [
+   {
+    "kind": "item",
+    "text": "that the result is new",
+    "at": 5.6
+   },
+   {
+    "kind": "item",
+    "text": "that the statement matches the paper's claim",
+    "at": 7.0
+   },
+   {
+    "kind": "tag",
+    "text": "→ OpenAI's own caveat",
+    "at": 9.2
+   }
+  ]
+ },
+ "receipt": {
+  "img": "assets/receipts/R02-math-issues.png",
+  "json": "assets/receipts/R02-math-issues.json",
+  "css_x0": 115,
+  "css_y0": 332,
+  "f": 1.75,
+  "chrome_left": "github.com/openai/math · README",
+  "chrome_right": "OpenAI, in its own words",
+  "rise_at": 9.4,
+  "highlights": [
+   {
+    "line": 0,
+    "at": 10.6,
+    "dur": 1.8
+   }
+  ]
+ },
+ "dim_at": 9.4
+}

@@ -12,8 +12,11 @@ import unittest
 
 from helpers import ENGINE, ROOT, have, load, run
 
-CORE = ['capture.sh', 'receipt.mjs', 'ocr-locate.swift', 'voice.py', 'align.py', 'captions.py', 'scene_words.py',
-        'loudfix.sh', 'config.json', 'doctor.mjs', 'setup.sh', 'package.json']
+DEMO = os.path.join(os.path.dirname(ENGINE), 'demo')
+# every engine file, so a new tool is checked without editing this list
+CORE = sorted(f for f in os.listdir(ENGINE) if not f.startswith('.') and os.path.isfile(os.path.join(ENGINE, f)))
+SHIPPED = [os.path.join(ENGINE, n) for n in CORE] + sorted(
+    os.path.join(DEMO, f) for f in os.listdir(DEMO) if not f.startswith('.') and os.path.isfile(os.path.join(DEMO, f)))
 CONFIG = load(os.path.join(ENGINE, 'config.json'))
 
 
@@ -31,8 +34,8 @@ def test_files():
 
 class ConfigTests(unittest.TestCase):
     def test_config_contract(self):
-        self.assertEqual(CONFIG, {'hyperframes': '0.8.147', 'voice': 'af_heart', 'speed': 1.06, 'lufs': -16,
-                                  'true_peak': -1.5, 'wpm': [145, 185], 'max_cps': 21, 'max_chars': 42,
+        self.assertEqual(CONFIG, {'hyperframes': '0.8.147', 'gsap': '3.14.2', 'voice': 'af_heart', 'speed': 1.06,
+                                  'lufs': -16, 'true_peak': -1.5, 'wpm': [145, 185], 'max_cps': 21, 'max_chars': 42,
                                   'home': '~/.said-vs-shown'})
 
     def test_package_pins_are_exact(self):
@@ -43,11 +46,13 @@ class ConfigTests(unittest.TestCase):
         for v in pkg['dependencies'].values():
             self.assertRegex(v, r'^\d+\.\d+\.\d+$')
 
-    def test_hyperframes_version_lives_only_in_config(self):
-        for name in CORE:
-            if name == 'config.json':
+    def test_versions_live_only_in_config(self):
+        self.assertIn('README.md', os.listdir(DEMO))
+        for path in SHIPPED:
+            if os.path.basename(path) == 'config.json':
                 continue
-            self.assertNotIn(CONFIG['hyperframes'], read(os.path.join(ENGINE, name)), name)
+            for key in ('hyperframes', 'gsap'):
+                self.assertNotIn(CONFIG[key], read(path), '%s hardcodes the %s version' % (path, key))
 
 
 class HygieneTests(unittest.TestCase):
@@ -57,17 +62,17 @@ class HygieneTests(unittest.TestCase):
         r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')]
 
     def test_no_personal_paths_or_private_names(self):
-        for path in [os.path.join(ENGINE, n) for n in CORE] + test_files():
+        for path in SHIPPED + test_files():
             text = read(path)
             for pat in self.PRIVATE:
                 self.assertIsNone(pat.search(text), '%s matches %s' % (path, pat.pattern))
 
     def test_python_opens_use_utf8(self):
-        for name in CORE:
-            if name.endswith('.py'):
-                for line in read(os.path.join(ENGINE, name)).splitlines():
+        for path in SHIPPED:
+            if path.endswith('.py'):
+                for line in read(path).splitlines():
                     if re.search(r'\bopen\(', line) and 'def ' not in line:
-                        self.assertIn('encoding=', line, '%s: %s' % (name, line.strip()))
+                        self.assertIn('encoding=', line, '%s: %s' % (path, line.strip()))
 
     def test_shell_is_portable(self):
         for name in CORE:
@@ -86,9 +91,11 @@ class HygieneTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def test_python_tools_parse_on_this_interpreter(self):
-        for name in ('voice.py', 'captions.py', 'scene_words.py'):
+        for name in ('voice.py', 'captions.py', 'scene_words.py', 'assemble.py', 'scope_css.py', 'deliver.py',
+                     'fill_scenes.py', 'new_episode.py'):
             r = run([sys.executable, os.path.join(ENGINE, name), '--help'])
             self.assertEqual(r.returncode, 0, name + r.stderr)
+            self.assertIn('usage', r.stdout.lower(), name)
         self.assertNotEqual(run([sys.executable, os.path.join(ENGINE, 'align.py')]).returncode, 0)
 
     def test_setup_help(self):
@@ -102,6 +109,9 @@ class CliTests(unittest.TestCase):
         for name in ('receipt.mjs', 'doctor.mjs'):
             r = run(['node', '--check', os.path.join(ENGINE, name)])
             self.assertEqual(r.returncode, 0, name + r.stderr)
+            r = run(['node', os.path.join(ENGINE, name), '--help'])  # doctor must not run its checks here
+            self.assertEqual(r.returncode, 0, name + r.stderr)
+            self.assertIn('usage', r.stdout, name)
 
     @unittest.skipUnless(have('node'), 'node not installed')
     def test_receipt_usage_and_chrome_lookup(self):

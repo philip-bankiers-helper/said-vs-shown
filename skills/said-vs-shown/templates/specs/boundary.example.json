@@ -1,0 +1,27 @@
+{
+ "sid": "ui-boundary", "prefix": "ub-",
+ "kicker": { "num": "02", "topic": "Interfaces", "glyph": "checked", "text": "Checked · Oct 7 · OpenAI release notes" },
+ "boundary_at": 0.3,
+ "proves": {
+  "header": "Establishes", "header_at": 1.2,
+  "lines": [ { "html": "OpenAI shipped it,", "at": 2.05 }, { "html": "rolling out from <b>Oct 7</b>.", "at": 3.9 } ],
+  "underline_at": 4.65, "underline_dur": 0.6,
+  "subs": [ { "text": "Now: Plus · Pro · Business · Enterprise", "at": 5.69 }, { "text": "Scheduled Oct 8: Free · Go", "at": 8.09 } ]
+ },
+ "nots": {
+  "header": "Doesn't establish", "header_at": 10.73,
+  "rows": [
+   { "kind": "item", "text": "that the answers are more accurate", "at": 12.33 },
+   { "kind": "item", "text": "that they're easier to learn from", "at": 14.25 },
+   { "kind": "tag", "text": "→ needs independent testing", "at": 15.93 },
+   { "kind": "item", "text": "that a persuasive interface means a right answer", "at": 17.29 }
+  ]
+ },
+ "receipt": {
+  "img": "assets/receipts/R05-ui-rollout.png", "json": "assets/receipts/R05-ui-rollout.json",
+  "css_x0": 180, "css_y0": 344, "f": 1.75,
+  "chrome_left": "help.openai.com · ChatGPT release notes · Oct 7", "chrome_right": "OpenAI, in its own words",
+  "rise_at": 3.6,
+  "highlights": [ { "line": 0, "at": 4.3, "dur": 3.3 }, { "line": 1, "at": 8.1, "dur": 2.0 } ]
+ }
+}

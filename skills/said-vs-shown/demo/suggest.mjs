@@ -38,7 +38,7 @@ if (!opts.url) {
 }
 const puppeteer = requireDep('puppeteer-core')
 if (!puppeteer) {
-  console.error('puppeteer-core not found; run engine/setup.sh')
+  console.error(`puppeteer-core not found; run: sh "${path.join(ENGINE, 'setup.sh')}"`)
   process.exit(2)
 }
 const executablePath = execFileSync(process.execPath, [path.join(ENGINE, 'receipt.mjs'), '--find-chrome']).toString().trim()

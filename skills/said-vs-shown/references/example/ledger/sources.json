@@ -1,0 +1,18 @@
+[
+ {
+  "id": "S01",
+  "url": "https://github.com/openai/math"
+ },
+ {
+  "id": "S02",
+  "url": "https://openai.com/index/sharing-ai-progress-in-mathematics/"
+ },
+ {
+  "id": "S03",
+  "url": "https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/"
+ },
+ {
+  "id": "S04",
+  "url": "https://cortexrobot.ai/research/introducing-cortex-harness/"
+ }
+]

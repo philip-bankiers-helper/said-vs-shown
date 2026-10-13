@@ -14,7 +14,7 @@ Makes a ~20–30 s 1920x1080 receipt clip, <out>/demo.mp4 (default out: ./said-v
               then a 2 s end card with the install line
   4. render   npx hyperframes render -q draft -w 2 (--quality looks for sharper page text)
 Prints the wall time of each step. Exit 1 if the sentence is not on the page (with the closest sentence that
-is), 2 if a dependency is missing (run engine/setup.sh).
+is), 2 if a dependency is missing (run <skill>/engine/setup.sh).
 Kokoro: $HYPERFRAMES_PYTHON if set, else $SVS_HOME/kokoro (SVS_HOME defaults to "home" in engine/config.json).
 """
 import argparse
@@ -37,7 +37,7 @@ ENGINE = os.path.join(SKILL, 'engine')
 TEMPLATES = os.path.join(SKILL, 'templates')
 SCENE_ID, PREFIX = 'demo-receipt', 'dr-'
 LEAD, GAP_QUOTE, GAP_OUTRO, HOLD, END_CARD = 0.5, 0.5, 0.9, 0.7, 2.0
-FALLBACK_INSTALL = '/plugin marketplace add philipbankier/said-vs-shown'
+FALLBACK_INSTALL = 'npx skills add philipbankier/said-vs-shown'  # works for Claude Code and the other Agent Skills agents
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
 
@@ -48,16 +48,18 @@ def fail(msg, code=1):
 
 
 def load_config():
+    path = os.path.join(ENGINE, 'config.json')
     try:
-        with open(os.path.join(ENGINE, 'config.json'), encoding='utf-8') as fh:
+        with open(path, encoding='utf-8') as fh:
             cfg = json.load(fh)
-    except OSError:
-        cfg = {}
-    hf = cfg.get('hyperframes') or '0.8.147'
-    if isinstance(hf, dict):
-        hf = hf.get('version') or '0.8.147'
+    except (OSError, ValueError) as e:
+        fail(f'cannot read {path} ({e}); reinstall the skill', 2)
+    for key in ('hyperframes', 'gsap'):
+        if not cfg.get(key):
+            fail(f'{path} has no "{key}" version; reinstall the skill', 2)
     home = os.path.abspath(os.path.expanduser(os.environ.get('SVS_HOME') or cfg.get('home') or '~/.said-vs-shown'))
-    return {'hf': str(hf), 'home': home, 'voice': cfg.get('voice') or 'af_heart', 'speed': float(cfg.get('speed') or 1.0)}
+    return {'hf': str(cfg['hyperframes']), 'gsap': str(cfg['gsap']), 'home': home, 'voice': cfg.get('voice') or 'af_heart',
+            'speed': float(cfg.get('speed') or 1.0)}
 
 
 def install_line(override):
@@ -68,7 +70,7 @@ def install_line(override):
             repo = json.load(fh).get('repository', '')
         m = re.search(r'github\.com/([^/]+/[^/.]+)', repo)
         if m:
-            return f'/plugin marketplace add {m.group(1)}'
+            return f'npx skills add {m.group(1)}'
     except (OSError, ValueError):
         pass
     return FALLBACK_INSTALL
@@ -158,7 +160,8 @@ def tts(cfg, text, out, voice, speed, env):
     cmd = ['npx', '-y', f'hyperframes@{cfg["hf"]}', 'tts', text, '-v', voice, '-s', str(speed), '-o', out, '--json']
     r = subprocess.run(cmd, capture_output=True, text=True, env=env)
     if r.returncode != 0 or not os.path.isfile(out):
-        fail('Kokoro TTS failed (run engine/setup.sh, or set HYPERFRAMES_PYTHON to a python with kokoro-onnx):\n'
+        fail(f'Kokoro TTS failed (run: sh {os.path.join(ENGINE, "setup.sh")}, or set HYPERFRAMES_PYTHON to a python '
+             'with kokoro-onnx):\n'
              + (r.stderr or r.stdout).strip()[-800:], 2)
     return out
 
@@ -326,7 +329,10 @@ def caption_cues(timeline, max_chars=42):
             text = ' '.join(w['t'] for w in ch)
             cues.append({'text': text, 'start': ch[0]['s'] - 0.05, 'end': ch[-1]['e'] + 0.2})
     for i in range(len(cues) - 1):
-        cues[i]['end'] = min(cues[i]['end'], cues[i + 1]['start'] - 0.02)
+        # back-to-back cues touch (no one-frame blink between them); a real pause keeps its gap
+        nxt = cues[i + 1]['start']
+        if cues[i]['end'] > nxt - 0.1:
+            cues[i]['end'] = nxt
     return cues
 
 
@@ -348,7 +354,7 @@ FONT_FACES = '''      @font-face { font-family: "Newsreader"; font-weight: 300; 
       @font-face { font-family: "IBM Plex Mono"; font-weight: 600; src: url("assets/fonts/IBMPlexMono-SemiBold-Latin1.woff2") format("woff2"); unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2013-2014, U+2018-201A, U+201C-201E, U+2020-2022, U+2026, U+2030, U+2039-203A, U+2044, U+20AC, U+2122, U+2212, U+FB01-FB02; }'''
 
 
-def index_html(total, end_at, narr_dur, cues, sfx):
+def index_html(total, end_at, narr_dur, cues, sfx, gsap):
     e = html.escape
     caps = '\n'.join(f'        <span class="cap-text" id="cap-{i:02d}">{e(c["text"])}</span>' for i, c in enumerate(cues))
     cap_js = '\n'.join(f'      tl.set("#cap-{i:02d}", {{ opacity: 1 }}, {c["start"]:.2f}); tl.set("#cap-{i:02d}", {{ opacity: 0 }}, {c["end"]:.2f});'
@@ -361,7 +367,7 @@ def index_html(total, end_at, narr_dur, cues, sfx):
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=1920, height=1080" />
     <title>Said vs. Shown — demo</title>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@{gsap}/dist/gsap.min.js"></script>
     <style>
 {FONT_FACES}
       * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -459,7 +465,7 @@ def end_card_html(install, note):
 '''
 
 
-def compose(proj, receipt, url, quote, timeline, narr_dur, install):
+def compose(proj, receipt, url, quote, timeline, narr_dur, install, gsap):
     # project skeleton, design spec, fonts, sound marks
     for f in ('hyperframes.json', 'package.json'):
         shutil.copy(os.path.join(TEMPLATES, 'project', f), os.path.join(proj, f))
@@ -501,7 +507,7 @@ def compose(proj, receipt, url, quote, timeline, narr_dur, install):
     with open(os.path.join(proj, 'compositions', '02-end-card.html'), 'w', encoding='utf-8') as fh:
         fh.write(end_card_html(install, f'AI voice (Kokoro) · page captured {cap_short} · {domain}'))
     with open(os.path.join(proj, 'index.html'), 'w', encoding='utf-8') as fh:
-        fh.write(index_html(total, end_at, narr_dur, cues, sfx))
+        fh.write(index_html(total, end_at, narr_dur, cues, sfx, gsap))
     with open(os.path.join(proj, 'demo.json'), 'w', encoding='utf-8') as fh:
         json.dump({'url': url, 'quote': quote, 'domain': domain, 'captured': cap.isoformat(), 'total': total,
                    'end_card_at': end_at, 'camera': cfg['camera'], 'highlight': cfg['highlight'],
@@ -554,7 +560,7 @@ def main(argv):
     clock.done(f'{narr_dur:.1f} s of narration, {a.voice or cfg["voice"]} @ {a.speed or cfg["speed"]}')
 
     clock.step('compose')
-    total, end_at, scene = compose(proj, receipt, a.url, quote, timeline, narr_dur, install_line(a.install_line))
+    total, end_at, scene = compose(proj, receipt, a.url, quote, timeline, narr_dur, install_line(a.install_line), cfg['gsap'])
     clock.done(f'{total:.1f} s timeline, end card at {end_at:.1f} s')
 
     clock.step('render')

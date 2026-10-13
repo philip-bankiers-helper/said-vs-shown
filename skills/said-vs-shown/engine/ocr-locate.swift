@@ -52,7 +52,16 @@ let obs = (req.results ?? []).compactMap { o -> (String, CGRect)? in
 let q = norm(quote)
 var hit: [(String, CGRect)] = []
 if !q.isEmpty {
+  let qw = q.components(separatedBy: " ")
   outer: for i in obs.indices {
+    // the quote must start on line i: line i holds the whole quote, is its opening, or ends with its first words
+    let first = norm(obs[i].0)
+    let starts = !first.isEmpty && (first.contains(q) || q.hasPrefix(first)
+      || (1...qw.count).contains { n in
+        let p = qw.prefix(n).joined(separator: " ")
+        return first == p || first.hasSuffix(" " + p)
+      })
+    if !starts { continue }
     var acc = ""
     for j in i..<min(obs.count, i + 4) {
       acc += (acc.isEmpty ? "" : " ") + norm(obs[j].0)

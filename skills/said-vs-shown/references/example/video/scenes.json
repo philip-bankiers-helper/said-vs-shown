@@ -1,0 +1,42 @@
+{
+ "title": "AI · 2026-10-08",
+ "hold": 0.12,
+ "scenes": [
+  {
+   "id": "squeeze",
+   "src": "compositions/01-squeeze.html"
+  },
+  {
+   "id": "math-receipt",
+   "src": "compositions/02-math-receipt.html"
+  },
+  {
+   "id": "math-boundary",
+   "src": "compositions/03-math-boundary.html"
+  },
+  {
+   "id": "payoff",
+   "src": "compositions/04-payoff.html"
+  },
+  {
+   "id": "one-thing",
+   "src": "compositions/05-one-thing.html"
+  },
+  {
+   "id": "close",
+   "src": "compositions/06-close.html"
+  }
+ ],
+ "sfx": [
+  {
+   "file": "assets/sfx/whoosh-short.wav",
+   "at": 3.2,
+   "vol": 0.3
+  },
+  {
+   "file": "assets/sfx/click-soft.wav",
+   "at": 18.4,
+   "vol": 0.32
+  }
+ ]
+}
