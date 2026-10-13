@@ -58,6 +58,9 @@ def num(x):
 
 
 def main(argv):
+    if any(a in ('-h', '--help') for a in argv):
+        print(__doc__.strip())
+        sys.exit(0)
     if len(argv) != 8:
         sys.exit(__doc__.strip())
     ep_dir, n, sid, out = argv[0], int(argv[1]), argv[2], argv[3]

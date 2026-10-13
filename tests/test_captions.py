@@ -52,6 +52,56 @@ class CaptionsExampleTests(unittest.TestCase):
             self.assertNotIn(last, {'the', 'a', 'an', 'of', 'to'}, c)
 
 
+class SceneCutLeadTests(unittest.TestCase):
+    """A cue that starts just after a scene cut keeps its lead on its own side of the cut (the 0.02 s flash of
+    "What does the release establish?" at 65.02-65.04 when L5 ran at speed 1.1)."""
+    CUT = 65.04
+
+    def words(self, first_start):
+        prev = [w('That', 63.1, 63.4), w('ships', 63.4, 63.8), w('today.', 63.8, 64.3)]
+        q = ['What', 'does', 'the', 'release', 'establish?']
+        nxt = [w(t, first_start + 0.3 * i, first_start + 0.3 * i + 0.28) for i, t in enumerate(q)]
+        return prev + nxt + [w('Shipping.', 67.0, 67.6)]
+
+    def check(self, cues):
+        for c in cues:
+            self.assertGreaterEqual(round(c['end'] - c['start'], 3), 0.83, c)
+            self.assertFalse(c['start'] < self.CUT - 1e-6 < c['end'] - 2e-6, (c, 'crosses the cut'))
+        for a, b in zip(cues, cues[1:]):
+            self.assertLessEqual(a['end'], b['start'] + 1e-6, (a, b))
+
+    def test_lead_never_crosses_its_own_cut(self):
+        cues = captions.build(self.words(65.07), [self.CUT], 42)
+        q = next(c for c in cues if c['text'].startswith('What does'))
+        self.assertEqual(q['start'], self.CUT)
+        self.assertGreater(q['end'], 66.0)
+        self.check(cues)
+        self.assertLessEqual(cues[0]['end'], self.CUT)
+
+    def test_full_lead_when_the_cut_is_further_back(self):
+        cues = captions.build(self.words(65.5), [self.CUT], 42)
+        q = next(c for c in cues if c['text'].startswith('What does'))
+        self.assertEqual(q['start'], 65.45)
+        self.check(cues)
+
+    def test_cue_exactly_on_the_cut(self):
+        cues = captions.build(self.words(self.CUT), [self.CUT], 42)
+        q = next(c for c in cues if c['text'].startswith('What does'))
+        self.assertEqual(q['start'], self.CUT)
+        self.check(cues)
+
+    def test_cli_on_a_synthetic_words_json(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'words.json')
+            save(self.words(65.07), p)
+            r = run([sys.executable, os.path.join(ENGINE, 'captions.py'), p, d, '--cuts', '9.33,%s' % self.CUT, '--strict'])
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            cues = load(os.path.join(d, 'cues.json'))
+            self.check(cues)
+            with open(os.path.join(d, 'captions.vtt'), encoding='utf-8') as f:
+                self.assertIn('00:01:05.040 --> ', f.read())
+
+
 class DisplayMapTests(unittest.TestCase):
     def test_word_boundaries_only(self):
         cues = [{'text': 'someone said one thing, oneness'}]
@@ -67,6 +117,12 @@ class DisplayMapTests(unittest.TestCase):
         cues = [{'text': 'ninety-three percent, and'}]
         captions.apply_display(cues, {'ninety-three percent': '93%'})
         self.assertEqual(cues[0]['text'], '93%, and')
+
+    def test_display_fn_is_the_same_rule_for_plain_text(self):
+        fn = captions.display_fn({'Said versus Shown': 'Said vs. Shown', 'one': '1'})
+        self.assertEqual(fn("That's Said versus Shown, someone said one."), "That's Said vs. Shown, someone said 1.")
+        self.assertEqual(captions.display_fn({})('as is'), 'as is')
+        self.assertEqual(captions.display_fn(None)('as is'), 'as is')
 
 
 class ChunkingTests(unittest.TestCase):

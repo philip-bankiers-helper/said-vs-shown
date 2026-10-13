@@ -146,6 +146,20 @@ def balanced_chunks(words, n):
     return best[1]
 
 
+def lead_off(mark, tail):
+    """Split a highlight that opens the one-thing question into (line1, mark): line 1 takes the highlight's first
+    words and the rest stays marked on line 2 (which also carries the tail). The two lines are balanced and line 1
+    avoids ending on a stop word. A one-word highlight cannot be split: ('', mark)."""
+    mw = mark.split()
+    best = None
+    for k in range(1, len(mw)):
+        a, b = ' '.join(mw[:k]), ' '.join(mw[k:])
+        score = max(len(a), len(b + tail)) + (8 if norm(mw[k - 1]) in STOP else 0)
+        if best is None or score < best[0]:
+            best = (score, a, b)
+    return (best[1], best[2]) if best else ('', mark)
+
+
 def align_tokens(W, toks, start=0, window=6):
     """Greedy in-order alignment of on-screen tokens to spoken words; None where a token wasn't said nearby."""
     out, cur = [], start
@@ -448,8 +462,15 @@ def build_one_thing(ep, W, bt):
             ep.notes.append(f'one-thing: highlight {hl!r} is not in the question {q!r}; the last two words are marked')
         toks = qtext.split()
         line1, mark, tail = ' '.join(toks[:-2]), ' '.join(toks[-2:]), ''
-    if not line1:
-        line1, mark = mark, ''
+    if not line1 and mark:
+        # the highlight opens the question (or is all of it): line 1 takes its first words, the rest stays marked
+        whole, line1, mark = mark, *lead_off(mark, tail)
+        if line1:
+            ep.notes.append(f'one-thing: the highlight {whole!r} starts the question, so line 1 is {line1!r} and the '
+                            f'highlight marks {mark!r} on line 2; set one_thing_highlight to a later phrase to choose')
+        else:
+            ep.notes.append(f'one-thing: the highlight {whole!r} is the first word of the question; the question '
+                            'shows on one line with that word marked')
 
     kicker = bt.add('kicker', W.w[0]['s'] if W else 0.14, 'first word')
     frags = balanced_chunks(quiet.split(), 2 if len(quiet) <= 44 else 3) if quiet else []
@@ -466,7 +487,8 @@ def build_one_thing(ep, W, bt):
         else:
             t = bt.add('quiet: ' + ' '.join(f), (quiet_cfg[-1]['at'] + 0.6) if quiet_cfg else kicker + 0.45, 'no spoken match')
         quiet_cfg.append({'text': ' '.join(f), 'at': t})
-    qidx = [i for i in align_tokens(W, line1.split(), start=(last_idx + 1) if last_idx is not None else 0) if i is not None]
+    qidx = [i for i in align_tokens(W, (line1 or mark).split(), start=(last_idx + 1) if last_idx is not None else 0)
+            if i is not None]
     if last_idx is not None and last_idx + 1 < len(W.w):
         nudge = bt.add('nudge', W.w[last_idx + 1]['s'] + 0.02, f'"{W.w[last_idx + 1]["t"]}" (after the lead line)')
     else:

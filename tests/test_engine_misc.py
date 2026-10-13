@@ -82,6 +82,13 @@ class HygieneTests(unittest.TestCase):
                 self.assertTrue(text.startswith('#!/bin/sh'), name)
                 self.assertEqual(run(['sh', '-n', os.path.join(ENGINE, name)]).returncode, 0, name)
 
+    def test_snapshots_never_describe(self):
+        # `hyperframes snapshot` sends frames to a paid vision model unless told not to
+        for path in SHIPPED:
+            for n, line in enumerate(read(path).splitlines(), 1):
+                if re.search(r'\bsnapshot\b', line) and re.search(r'hyperframes|\bHF\b|npx', line):
+                    self.assertRegex(line, r'--describe[\'",\s=]+false', '%s:%d %s' % (path, n, line.strip()))
+
     def test_capture_has_no_swallowed_errors(self):
         text = read(os.path.join(ENGINE, 'capture.sh'))
         self.assertNotIn('|| true', text)
@@ -91,12 +98,30 @@ class HygieneTests(unittest.TestCase):
 
 class CliTests(unittest.TestCase):
     def test_python_tools_parse_on_this_interpreter(self):
-        for name in ('voice.py', 'captions.py', 'scene_words.py', 'assemble.py', 'scope_css.py', 'deliver.py',
-                     'fill_scenes.py', 'new_episode.py'):
-            r = run([sys.executable, os.path.join(ENGINE, name), '--help'])
+        names = [n for n in CORE if n.endswith('.py')]
+        self.assertGreaterEqual(len(names), 12)
+        for name in names + [os.path.join('..', 'demo', 'demo.py')]:
+            for flag in ('--help', '-h'):
+                r = run([sys.executable, os.path.join(ENGINE, name), flag])
+                self.assertEqual(r.returncode, 0, name + flag + r.stderr)
+                self.assertIn('usage', r.stdout.lower(), name)
+        for name in ('align.py', 'board.py', 'boundary.py', 'companion.py'):  # wrong arguments stay an error
+            self.assertNotEqual(run([sys.executable, os.path.join(ENGINE, name)]).returncode, 0, name)
+
+    def test_shell_tools_help(self):
+        for name in [n for n in CORE if n.endswith('.sh')]:
+            r = run(['sh', os.path.join(ENGINE, name), '--help'])
             self.assertEqual(r.returncode, 0, name + r.stderr)
             self.assertIn('usage', r.stdout.lower(), name)
-        self.assertNotEqual(run([sys.executable, os.path.join(ENGINE, 'align.py')]).returncode, 0)
+        self.assertEqual(run(['sh', os.path.join(ENGINE, 'loudfix.sh')]).returncode, 2)
+
+    @unittest.skipUnless(have('swift') and sys.platform == 'darwin', 'swift (macOS) not available')
+    def test_ocr_locate_help(self):
+        swift = os.path.join(ENGINE, 'ocr-locate.swift')
+        r = run(['swift', swift, '--help'], timeout=300)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('usage', r.stdout)
+        self.assertEqual(run(['swift', swift], timeout=300).returncode, 2)
 
     def test_setup_help(self):
         r = run(['sh', os.path.join(ENGINE, 'setup.sh'), '--help'])
@@ -106,12 +131,14 @@ class CliTests(unittest.TestCase):
 
     @unittest.skipUnless(have('node'), 'node not installed')
     def test_node_tools_parse(self):
-        for name in ('receipt.mjs', 'doctor.mjs'):
-            r = run(['node', '--check', os.path.join(ENGINE, name)])
+        for path in [os.path.join(ENGINE, n) for n in CORE if n.endswith('.mjs')] + [os.path.join(DEMO, 'suggest.mjs')]:
+            name = os.path.basename(path)
+            r = run(['node', '--check', path])
             self.assertEqual(r.returncode, 0, name + r.stderr)
-            r = run(['node', os.path.join(ENGINE, name), '--help'])  # doctor must not run its checks here
+            r = run(['node', path, '--help'])  # doctor must not run its checks here, suggest must not open Chrome
             self.assertEqual(r.returncode, 0, name + r.stderr)
             self.assertIn('usage', r.stdout, name)
+        self.assertEqual(run(['node', os.path.join(DEMO, 'suggest.mjs')]).returncode, 2)
 
     @unittest.skipUnless(have('node'), 'node not installed')
     def test_receipt_usage_and_chrome_lookup(self):

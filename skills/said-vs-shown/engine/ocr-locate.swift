@@ -21,6 +21,12 @@ func emit(_ obj: [String: Any]) {
 }
 
 let args = CommandLine.arguments
+if args.count == 2 && (args[1] == "--help" || args[1] == "-h") {
+  print("usage: swift ocr-locate.swift <image.png> \"<quote>\"")
+  print("Finds a verbatim quote in a screenshot with Apple Vision (macOS only); prints JSON {found, image, lines}.")
+  print("exit 0 = found, 1 = not found, 2 = usage error / unreadable image / Vision failure.")
+  exit(0)
+}
 guard args.count >= 3, let img = NSImage(contentsOfFile: args[1]),
   let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil)
 else {

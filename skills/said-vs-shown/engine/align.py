@@ -7,7 +7,9 @@ Both sides are normalised to the same canonical tokens before matching, so spoke
 digits meet in the middle: "five hundred and twenty-two" / "522", "ninety-three percent" / "93%",
 "fifth" / "5th", "Nineteen" / "19". Script words that share one ASR word share its time span
 (split by character length). Runs of unmatched script words are spread across the gap between
-their matched neighbours, proportional to character length. Prints per-line WER as JSON.
+their matched neighbours, proportional to character length. No word ends after its line's audio
+(timeline start + dur): an ASR end deep in the following silence would hold the last caption through
+the gap or the closing hold. Prints per-line WER as JSON.
 """
 import difflib
 import json
@@ -221,13 +223,17 @@ def align(script, transcript, timeline):
         errs = len(toks) - matched
         report.append({'line': L['id'], 'words': len(toks), 'asr_words': len(seg), 'unmatched': errs,
                        'wer': round(errs / max(1, len(toks)), 3)})
+        line_end = T['start'] + T['dur']
         for t, (s, e) in zip(toks, times):
             words.append({'id': 'w%d' % len(words), 'line': L['id'], 'text': t,
-                          'start': round(s, 3), 'end': round(max(e, s + 0.08), 3)})
+                          'start': round(s, 3), 'end': round(max(min(e, line_end), s + 0.08), 3)})
     return words, report
 
 
 def main(argv):
+    if any(a in ('-h', '--help') for a in argv):
+        print(__doc__.strip())
+        sys.exit(0)
     if len(argv) != 4:
         raise SystemExit('usage: align.py <script.json> <transcript.json> <timeline.json> <out words.json>')
     loaded = []

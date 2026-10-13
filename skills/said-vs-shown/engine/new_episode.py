@@ -10,8 +10,9 @@ Creates <episodes_root>/<date>_<edition-slug>/ with input/ ledger/ edit/ video/ 
 input/brief.md, the HyperFrames project template (<skill>/templates/project/) into video/, plus
 templates/frame.md -> video/frame.md, templates/fonts/ -> video/assets/fonts/, templates/sfx/ -> video/assets/sfx/.
 Writes a starter edit/episode.json (show, edition, date, editor, disclosure, credit: true) and video/BRIEF.md.
-The disclosure reads "not yet human-reviewed" until the review (stage 10) sets "reviewed_by"; --editor only
-records who edits the episode. Refuses to touch an existing episode folder.
+The disclosure reads "not yet human-reviewed" until the review (stage 10) sets "reviewed_by" (companion.disclosure_of);
+--editor only records who edits the episode. Refuses to touch an existing episode folder.
+The printed commands use paths relative to the current directory when the episode is inside it, else absolute.
 """
 import json
 import os
@@ -20,6 +21,8 @@ import shutil
 import sys
 
 ENGINE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ENGINE)
+from companion import disclosure_of  # noqa: E402  (the one disclosure rule)
 SKILL = os.path.dirname(ENGINE)
 TEMPLATES = os.path.join(SKILL, 'templates')
 SHOW = 'Said vs. Shown'
@@ -56,6 +59,19 @@ def edition_info(ed_slug):
     label = re.search(r'^label:\s*"?([^"#\n]+?)"?\s*(?:#.*)?$', text, flags=re.M)
     accent = re.search(r'\baccent:\s*"?(#[0-9A-Fa-f]{6})\b', text)
     return (label.group(1).strip() if label else ed_slug), (accent.group(1) if accent else None)
+
+
+def shown_path(path):
+    """A path for printed commands: relative to the working directory when the path is inside it, else absolute
+    (never a ../../.. chain); double-quoted when it holds spaces or shell characters."""
+    path = os.path.abspath(path)
+    try:
+        rel = os.path.relpath(path)
+    except ValueError:  # another drive on Windows
+        rel = path
+    if rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        rel = path
+    return rel if re.fullmatch(r'[\w@%+=:,./\\-]+', rel) else f'"{rel}"'
 
 
 def set_accent(frame_md, accent):
@@ -152,7 +168,7 @@ def main(argv):
         'one_thing': '',
         'one_thing_highlight': '',
         'editor': editor,
-        'disclosure': 'AI-produced · AI voice · every claim sourced · not yet human-reviewed',  # stage 10 sets reviewed_by
+        'disclosure': disclosure_of({}),  # "… · not yet human-reviewed"; the review (stage 10) adds reviewed_by
         'credit': True,
         'lead_badge_overrides': {},
         'stories': [],
@@ -180,9 +196,12 @@ def main(argv):
     with open(brief_tpl, 'w', encoding='utf-8') as fh:
         fh.write(b)
 
-    rel = os.path.relpath(ep)
+    rel, vid = shown_path(ep), shown_path(V)
+    comp = shown_path(os.path.join(V, 'compositions'))
+    specs = shown_path(os.path.join(V, 'specs'))
+    master = shown_path(os.path.join(V, 'renders', 'master.mp4'))
     eng = os.path.join(SKILL, 'engine')
-    print(f'''Created {rel}/   (edition {label}{', accent ' + accent if accent else ''})
+    print(f'''Created {rel}   (edition {label}{', accent ' + accent if accent else ''})
   input/brief.md      {'copied from ' + o['brief'] if o['brief'] else 'placeholder: paste the brief'}
   edit/episode.json   starter (show, edition, date, editor, disclosure, credit)
   video/              HyperFrames project + frame.md, fonts, sfx, BRIEF.md
@@ -191,13 +210,13 @@ Next (skill: {SKILL}; stages in SKILL.md, data contracts in references/project-l
   1. Fill edit/episode.json as the facts settle: window, captured, title, thesis, one_thing, stories, matrix, chapters.
   2. Capture, ledger, script + video/scenes.json, receipts, voice:
        sh "{eng}/capture.sh" {rel}
-       python3 "{eng}/voice.py" {rel}/video
+       python3 "{eng}/voice.py" {vid}
   3. Scenes (references/scenes.md):
        python3 "{eng}/fill_scenes.py" {rel}
-       python3 "{eng}/board.py" {rel} <n> board-<n> {rel}/video/compositions/NN-board-<n>.html <fill_at> <next_at> <zoom_at> <zoom_dur>
-       python3 "{eng}/boundary.py" {rel}/video/specs/NN-<scene>.json {rel}/video/compositions/NN-<scene>.html
-  4. Assemble and check: python3 "{eng}/assemble.py" {rel}/video && npx -y hyperframes@{hf} check --strict {rel}/video
-  5. After the review and the render: python3 "{eng}/deliver.py" {rel} --master {rel}/video/renders/master.mp4''')
+       python3 "{eng}/board.py" {rel} <n> board-<n> {comp}/NN-board-<n>.html <fill_at> <next_at> <zoom_at> <zoom_dur>
+       python3 "{eng}/boundary.py" {specs}/NN-<scene>.json {comp}/NN-<scene>.html
+  4. Assemble and check: python3 "{eng}/assemble.py" {vid} && npx -y hyperframes@{hf} check --strict {vid}
+  5. After the review (sets reviewed_by) and the render: python3 "{eng}/deliver.py" {rel} --master {master}''')
 
 
 if __name__ == '__main__':

@@ -31,9 +31,15 @@ function requireDep(name) {
   return null
 }
 
-const { values: opts } = parseArgs({ options: { url: { type: 'string' } } })
+const USAGE = 'usage: node suggest.mjs --url <u>\n' +
+  'Prints JSON {"url", "sentences": [...]}: the visible sentences of the page (headless Chrome, nothing clicked).'
+const { values: opts } = parseArgs({ options: { url: { type: 'string' }, help: { type: 'boolean', short: 'h' } } })
+if (opts.help) {
+  console.log(USAGE)
+  process.exit(0)
+}
 if (!opts.url) {
-  console.error('usage: suggest.mjs --url <u>')
+  console.error(USAGE)
   process.exit(2)
 }
 const puppeteer = requireDep('puppeteer-core')

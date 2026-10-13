@@ -90,23 +90,38 @@ def chunk(words, cuts, max_chars):
             for ch in merged]
 
 
-def apply_display(cues, dmap):
-    """Spoken -> written forms, whole words/phrases only, one pass (no cascading), longest key first."""
-    keys = sorted((k for k in dmap if k), key=len, reverse=True)
+def display_fn(dmap):
+    """A function text -> text that writes out the spoken forms of dmap: whole words/phrases only, one pass (no
+    cascading), longest key first. One rule for the captions, deliver.py's transcript.md and any other text."""
+    keys = sorted((k for k in (dmap or {}) if k), key=len, reverse=True)
     if not keys:
-        return cues
+        return lambda s: s
     pat = re.compile(r'(?<!\w)(' + '|'.join(re.escape(k) for k in keys) + r')(?!\w)')
+    return lambda s: pat.sub(lambda m: dmap[m.group(1)], s)
+
+
+def apply_display(cues, dmap):
+    """Spoken -> written forms in each cue's text (display_fn)."""
+    fn = display_fn(dmap)
     for c in cues:
-        c['text'] = pat.sub(lambda m: dmap[m.group(1)], c['text'])
+        c['text'] = fn(c['text'])
     return cues
 
 
 def time_cues(cues, cuts):
-    """Lead 0.05 s, tail +0.25 s, clamp to the next cue and to the scene cut, minimum 0.83 s."""
+    """Lead 0.05 s, tail +0.25 s, clamp to the next cue and to the next scene cut, minimum 0.83 s.
+
+    The next cut is chosen from the cue's ORIGINAL start, and the lead never moves a start before the cut that
+    opens the cue's own scene: a cue starting just after a cut would otherwise lead across it, take that same
+    cut as its end and flash for a few hundredths of a second."""
+    starts = []
+    for c in cues:
+        own = max((x for x in cuts if x <= c['start']), default=0.0)
+        starts.append(round(max(0.0, own, c['start'] - 0.05), 3))
     for i, c in enumerate(cues):
-        c['start'] = max(0.0, round(c['start'] - 0.05, 3))
-        nxt = cues[i + 1]['start'] - 0.05 if i + 1 < len(cues) else c['end'] + 1.0
         cut = next((x for x in cuts if x > c['start']), 1e9)
+        c['start'] = starts[i]
+        nxt = starts[i + 1] if i + 1 < len(cues) else c['end'] + 1.0
         c['end'] = round(min(c['end'] + 0.25, nxt, cut), 3)
         if c['end'] - c['start'] < 0.83:
             c['end'] = round(min(c['start'] + 0.83, nxt, cut), 3)

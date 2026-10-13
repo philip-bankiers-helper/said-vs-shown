@@ -5,6 +5,9 @@
 set -eu
 
 DIR=$(cd "$(dirname "$0")" && pwd)
+case "${1:-}" in
+  -h | --help) awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print (NR == 2 ? "usage: " : "") $0; next } { exit }' "$0"; exit 0 ;;
+esac
 if [ $# -ne 2 ]; then echo "usage: loudfix.sh <in.mp4> <out.mp4>" >&2; exit 2; fi
 IN=$1
 OUT=$2

@@ -48,6 +48,9 @@ def die(msg):
 
 
 def parse_args(argv):
+    if any(a in ('-h', '--help') for a in argv):
+        print(__doc__.strip())
+        sys.exit(0)
     args, project = [], None
     it = iter(argv)
     for a in it:

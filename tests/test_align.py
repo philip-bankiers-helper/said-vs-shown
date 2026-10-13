@@ -50,6 +50,43 @@ class CanonTests(unittest.TestCase):
                          ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th'])
 
 
+class LineEndClampTests(unittest.TestCase):
+    """A line's last word may not end after the line's audio (timeline start + dur): an ASR end deep in the
+    following silence kept the last caption on screen through the close hold."""
+    script = {'lines': [{'id': 'L1', 'scene': 'a', 'text': 'Every source is on the page.'},
+                        {'id': 'L2', 'scene': 'b', 'text': 'See you next week.'}]}
+    timeline = {'lines': [{'id': 'L1', 'start': 0.35, 'dur': 2.0}, {'id': 'L2', 'start': 3.5, 'dur': 1.5}],
+                'cuts': [3.14], 'total': 12.0}
+    transcript = [{'text': 'Every', 'start': 0.4, 'end': 0.7}, {'text': 'source', 'start': 0.7, 'end': 1.1},
+                  {'text': 'is', 'start': 1.1, 'end': 1.25}, {'text': 'on', 'start': 1.25, 'end': 1.4},
+                  {'text': 'the', 'start': 1.4, 'end': 1.55}, {'text': 'page.', 'start': 1.6, 'end': 3.3},
+                  {'text': 'See', 'start': 3.55, 'end': 3.8}, {'text': 'you', 'start': 3.8, 'end': 4.0},
+                  {'text': 'next', 'start': 4.0, 'end': 4.3}, {'text': 'week.', 'start': 4.3, 'end': 11.6}]
+
+    def test_word_end_clamped_to_line_audio_end(self):
+        words, _ = align.align(self.script, self.transcript, self.timeline)
+        by = {(x['line'], x['text']): x for x in words}
+        self.assertEqual(by[('L1', 'page.')]['end'], 2.35)   # ASR said 3.3
+        self.assertEqual(by[('L2', 'week.')]['end'], 5.0)    # ASR said 11.6 (deep in the close hold)
+        self.assertEqual(by[('L1', 'the')]['end'], 1.55)     # inside the line: untouched
+        for x in words:
+            self.assertGreater(x['end'], x['start'], x)
+
+    def test_last_caption_leaves_with_the_voice(self):
+        import captions
+        words, _ = align.align(self.script, self.transcript, self.timeline)
+        cues = captions.build(words, self.timeline['cuts'], 42)
+        self.assertEqual(cues[-1]['text'], 'See you next week.')
+        self.assertLessEqual(cues[-1]['end'], 5.0 + 0.25 + 1e-6)
+
+    def test_word_starting_at_the_line_end_keeps_a_minimum_length(self):
+        tr = [dict(x) for x in self.transcript]
+        tr[5] = {'text': 'page.', 'start': 2.33, 'end': 3.0}
+        words, _ = align.align(self.script, tr, self.timeline)
+        page = next(x for x in words if x['text'] == 'page.')
+        self.assertEqual((page['start'], page['end']), (2.33, 2.41))
+
+
 class AlignExampleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

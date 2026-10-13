@@ -210,14 +210,18 @@ def install_line(repo_url):
 DISCLOSURE_BASE = 'AI-produced · AI voice · every claim sourced'
 
 
-def disclosure_of(E):
-    """The disclosure line, its last segment derived from reviewed_by (frame.md → Disclosure line format).
+REVIEW_CLAIM = re.compile(r'\b(?:un)?review(?:ed)?\b', re.I)  # any segment about review
 
-    Whatever episode.json → disclosure says about review is replaced: "reviewed by <reviewed_by>" when a named
-    person reviewed the episode (stage 10), else "not yet human-reviewed"."""
-    base = re.sub(r'\s*·\s*(reviewed by [^·]+|not yet human-reviewed)\s*$', '', str(E.get('disclosure') or '').strip())
+
+def disclosure_of(E):
+    """The one disclosure line for the video (fill_scenes.py close), the page and deliver.py (frame.md → Disclosure
+    line format): episode.json "disclosure" with every segment that speaks about review dropped, then
+    "reviewed by <reviewed_by>" when a named person reviewed the episode (stage 10), else "not yet human-reviewed".
+    So no text in episode.json can claim a review that reviewed_by does not record."""
+    segs = [s.strip() for s in str(E.get('disclosure') or '').split('·')]
+    segs = [s for s in segs if s and not REVIEW_CLAIM.search(s)]
     reviewer = str(E.get('reviewed_by') or '').strip()
-    return (base or DISCLOSURE_BASE) + ' · ' + (f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed')
+    return ' · '.join(segs or [DISCLOSURE_BASE]) + ' · ' + (f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed')
 
 
 def build(ep_dir, out, video_name=None, repo_url=None, install=None):
@@ -493,6 +497,9 @@ section > h2.sec {{ font-family: var(--mono); font-size: 13px; text-transform: u
 
 
 def main(argv):
+    if any(a in ('-h', '--help') for a in argv):
+        print(__doc__.strip())
+        sys.exit(0)
     args, opts = [], {}
     it = iter(argv)
     for a in it:

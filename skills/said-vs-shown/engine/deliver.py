@@ -12,7 +12,8 @@ Writes only into <episode_dir>/deliver/:
   <slug>-web.mp4      720p two-pass H.264 cut under --max-mb (bitrate from the duration, with a safety margin)
   poster.jpg          frame at the end of the first "squeeze" scene (or scene 1), or at --poster-at
   captions.vtt/.srt   copies of video/audio/captions.*
-  transcript.md       script lines with their start times (audio/script.json + audio/timeline.json)
+  transcript.md       script lines with their start times (audio/script.json + audio/timeline.json), spoken
+                      forms written out with the script's "display" map, as in the captions
   SOURCES.md          story sources, other leads and the source map (episode.json, leads.json, sources.json)
   chapters.txt        YouTube-style chapters (episode.json "chapters" + the timeline)
   companion/          the static companion page (companion.py), with the web cut and poster copied in
@@ -31,6 +32,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import captions as CAP  # noqa: E402
 import companion as C  # noqa: E402
 
 AUDIO_KBPS = 128
@@ -131,6 +133,18 @@ def write(path, text):
         fh.write(text)
 
 
+def transcript_md(script, tl, head):
+    """transcript.md: every script line at its start time, with the script's "display" map applied the way the
+    captions apply it (whole words only), so it reads "Said vs. Shown" and "16", not the spoken forms."""
+    shown = CAP.display_fn(script.get('display') or {})
+    starts = {ln['id']: ln['start'] for ln in tl.get('lines', [])}
+    tr = [f'# Transcript — {head}', '']
+    for ln in script.get('lines', []):
+        t = starts.get(ln['id'])
+        tr += [(f'**{C.mmss(t)}** — ' if t is not None else '') + shown(ln['text']), '']
+    return '\n'.join(tr)
+
+
 def main(argv):
     opts = {'max_mb': 15.0, 'poster_at': None, 'repo_url': None, 'master': None, 'lufs': None, 'companion': True,
             'unreviewed': False}
@@ -223,12 +237,7 @@ def main(argv):
             print(f'deliver.py: missing {src} (run captions.py)', file=sys.stderr)
 
     head = ', '.join(x for x in (show, edition, window) if x)
-    starts = {ln['id']: ln['start'] for ln in tl.get('lines', [])}
-    tr = [f'# Transcript — {head}', '']
-    for ln in script.get('lines', []):
-        t = starts.get(ln['id'])
-        tr += [(f'**{C.mmss(t)}** — ' if t is not None else '') + ln['text'], '']
-    write(os.path.join(D, 'transcript.md'), '\n'.join(tr))
+    write(os.path.join(D, 'transcript.md'), transcript_md(script, tl, head))
 
     overrides = E.get('lead_badge_overrides') or {}
     src_lines = [f'# Sources — {head}', '']
