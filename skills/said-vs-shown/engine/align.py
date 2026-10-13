@@ -9,9 +9,11 @@ digits meet in the middle: "five hundred and twenty-two" / "522", "ninety-three 
 one monotonic alignment (most matched tokens; ties go to the match nearest the word's expected time),
 so an ASR that puts a line's first words a second early (Whisper does) still matches them to that line.
 Each matched word keeps its line: if the line's ASR times spill out of the line's audio (timeline start
-.. start + dur), they are mapped back onto it. Script words that share one ASR word share its time span
-(split by character length). Runs of unmatched script words are spread across the gap between their
-matched neighbours inside their own line, proportional to character length.
+.. start + dur), they are mapped back onto it. Matched words that the ASR put on one instant (several
+starts less than 0.06 s apart, as Whisper does) are spread from that instant to the next distinct start
+(or the line end). Script words that share one ASR word share its time span (split by character
+length). Runs of unmatched script words are spread across the gap between their matched neighbours
+inside their own line, proportional to character length.
 Guarantees: word starts never decrease; every word starts in its line's window (from 0.3 s before the
 line, never before the previous line's audio end, to the line's end) and lasts >= 0.08 s; no word ends
 after its line's audio unless that minimum needs it, and none reaches into the next line's window.
@@ -165,6 +167,8 @@ REFIT = 0.45      # a line whose first matched word starts earlier than this bef
 MIN_DUR = 0.08    # every word lasts at least this long
 REACH = 2.5       # an ASR word this far (s) outside a line's audio can still match that line's words
 NEAR = 0.1        # tie-break weight: of equally long alignments, prefer matches near the word's expected time
+COLLAPSE = 0.06   # matched words whose starts are closer than this are one collapsed ASR instant (_spread_collapsed)
+SPREAD_CPS = 25.0 # a collapsed run spread faster than this (chars/s) takes in the collapsed run right after it
 
 
 def _asr_tokens(asr):
@@ -233,6 +237,61 @@ def _lcs(S, A):
         else:
             i -= 1
     return pairs[::-1]
+
+
+def _spread_collapsed(toks, iv, src, end):
+    """Spread the words of a collapsed ASR instant. Whisper sometimes puts a run of words on one timestamp (or a few
+    hundredths apart, often zero length), and clamping early words onto the line's window edge does the same; left
+    alone they become one caption flash at a single instant. A unit is consecutive script words matched to the same
+    ASR word ("five hundred and twenty-two" -> "522", "fifty-nine percent" -> "59%"). A run is two or more matched
+    units whose starts are each less than COLLAPSE after the previous one, or one multi-word unit whose ASR span is
+    shorter than COLLAPSE. Its words, with the unmatched words between and after them, are spread proportional to
+    character length across [the run's first start, the next matched unit's start), or to the line end when no
+    matched unit follows. When that next unit opens another run and the interval would need more than SPREAD_CPS
+    characters a second, the two runs are spread as one (two collapsed instants a tenth of a second apart).
+    Order is kept: the next unit starts at or after COLLAPSE past the run's last start."""
+    units = []  # [first word, last word, start, end]
+    for k, x in enumerate(iv):
+        if x is None:
+            continue
+        if units and units[-1][1] == k - 1 and src[units[-1][1]] == src[k]:
+            units[-1][1] = k
+            units[-1][3] = max(units[-1][3], x[1])
+        else:
+            units.append([k, k, x[0], x[1]])
+
+    def run_end(a):
+        """The last unit of the run that starts at unit a (a itself when it opens no run)."""
+        b = a
+        while b + 1 < len(units) and units[b + 1][2] - units[b][2] < COLLAPSE:
+            b += 1
+        return b
+
+    def is_run(a, b):
+        return b > a or (units[a][1] > units[a][0] and units[a][3] - units[a][2] < COLLAPSE)
+
+    out = list(iv)
+    a = 0
+    while a < len(units):
+        b = run_end(a)
+        if is_run(a, b):
+            while b + 1 < len(units) and is_run(b + 1, run_end(b + 1)):
+                chars = sum(len(t) + 1 for t in toks[units[a][0]:units[b + 1][0]])
+                if chars <= SPREAD_CPS * (units[b + 1][2] - units[a][2]):
+                    break
+                b = run_end(b + 1)
+            w0 = units[a][0]
+            w1 = units[b + 1][0] if b + 1 < len(units) else len(toks)
+            t0 = units[a][2]
+            t1 = max(units[b + 1][2] if b + 1 < len(units) else end, t0)
+            lens = [len(t) + 1 for t in toks[w0:w1]]
+            tot, acc = float(sum(lens)), t0
+            for k in range(w0, w1):
+                d = (t1 - t0) * lens[k - w0] / tot
+                out[k] = (acc, acc + d)
+                acc += d
+        a = b + 1
+    return out
 
 
 def _split_shared(toks, iv):
@@ -313,7 +372,8 @@ def align(script, transcript, timeline):
     1. One global, monotonic alignment of the whole script against the whole ASR word stream (canonical tokens,
        so spoken numbers meet digits). No per-line search window: a word the ASR put early or late still matches.
     2. Each matched word belongs to its script line. If the line's matched ASR times spill out of the line's audio,
-       they are mapped back onto it (`_refit`).
+       they are mapped back onto it (`_refit`). Matched words on one collapsed instant are spread
+       (`_spread_collapsed`).
     3. Unmatched runs are interpolated inside their line only.
     4. Guarantees, per line [lo = start - LEAD (never before the previous line's audio end), end = start + dur]:
        lo <= word start, starts never decrease, word end >= start + MIN_DUR, end <= the line's end unless the
@@ -347,6 +407,7 @@ def align(script, transcript, timeline):
     pairs = _lcs(S, [(tok, asr[a0]['start']) for tok, a0, _ in At])
 
     ivs = [[None] * len(ln['toks']) for ln in lines]
+    srcs = [[None] * len(ln['toks']) for ln in lines]  # the (first) ASR word each matched script word came from
     asr_line = [None] * len(asr)
     for si, aj in pairs:
         li, w0, w1 = owner[si]
@@ -355,6 +416,8 @@ def align(script, transcript, timeline):
         for w in range(w0, w1 + 1):
             x = ivs[li][w]
             ivs[li][w] = (t0, t1) if x is None else (min(x[0], t0), max(x[1], t1))
+            if srcs[li][w] is None:
+                srcs[li][w] = a0
         for a in range(a0, a1 + 1):
             asr_line[a] = li
 
@@ -377,6 +440,8 @@ def align(script, transcript, timeline):
         # 2. refit spill, then clamp into the line's window; a word whose ASR span lies wholly outside is re-spread
         iv, shift = _refit(toks, iv, start, end)
         iv = [None if x is None or x[1] <= lo or x[0] >= end else (max(x[0], lo), min(x[1], end)) for x in iv]
+        # words the ASR (or the clamp) put on one instant are spread to the next distinct start
+        iv = _spread_collapsed(toks, iv, srcs[li], end)
         times = _split_shared(toks, iv)
         # 3. unmatched runs, inside the line only
         times = _fill(toks, times, start, end)

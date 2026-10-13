@@ -9,8 +9,9 @@ and its `design.accent` the `--accent` row of video/frame.md. An edition without
 Creates <episodes_root>/<date>_<edition-slug>/ with input/ ledger/ edit/ video/ deliver/, copies the brief to
 input/brief.md, the HyperFrames project template (<skill>/templates/project/) into video/, plus
 templates/frame.md -> video/frame.md, templates/fonts/ -> video/assets/fonts/, templates/sfx/ -> video/assets/sfx/.
-Writes a starter edit/episode.json (show, edition, date, editor, disclosure, credit: true) and video/BRIEF.md.
-The disclosure reads "not yet human-reviewed" until the review (stage 10) sets "reviewed_by" (companion.disclosure_of);
+Writes a starter edit/episode.json (show, edition, date, editor, credits: [], credit: true) and video/BRIEF.md.
+It has no "disclosure": the tools generate that line (companion.disclosure_of), which reads "not yet human-reviewed"
+until the review (stage 10) sets "reviewed_by". Third-party credits go in "credits" ("music: <value>", ...).
 --editor only records who edits the episode. Refuses to touch an existing episode folder.
 The printed commands use paths relative to the current directory when the episode is inside it, else absolute.
 """
@@ -21,8 +22,6 @@ import shutil
 import sys
 
 ENGINE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, ENGINE)
-from companion import disclosure_of  # noqa: E402  (the one disclosure rule)
 SKILL = os.path.dirname(ENGINE)
 TEMPLATES = os.path.join(SKILL, 'templates')
 SHOW = 'Said vs. Shown'
@@ -168,7 +167,7 @@ def main(argv):
         'one_thing': '',
         'one_thing_highlight': '',
         'editor': editor,
-        'disclosure': disclosure_of({}),  # "… · not yet human-reviewed"; the review (stage 10) adds reviewed_by
+        'credits': [],  # "<label>: <value>" (music, sfx, footage, images, translation, data); the disclosure is generated
         'credit': True,
         'lead_badge_overrides': {},
         'stories': [],
@@ -203,7 +202,7 @@ def main(argv):
     eng = os.path.join(SKILL, 'engine')
     print(f'''Created {rel}   (edition {label}{', accent ' + accent if accent else ''})
   input/brief.md      {'copied from ' + o['brief'] if o['brief'] else 'placeholder: paste the brief'}
-  edit/episode.json   starter (show, edition, date, editor, disclosure, credit)
+  edit/episode.json   starter (show, edition, date, editor, credits, credit)
   video/              HyperFrames project + frame.md, fonts, sfx, BRIEF.md
 
 Next (skill: {SKILL}; stages in SKILL.md, data contracts in references/project-layout.md):

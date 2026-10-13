@@ -6,10 +6,14 @@ usage: captions.py <words.json> <out_dir> --cuts 9.40,19.95 [--display script.js
 
 Rules: one line per cue, <= max_chars (config.json), clause-first (break on punctuation), long
 clauses split into balanced parts with a penalty for stranding a function word at a cue end, very
-short chunks merged forward, never a cue across a scene cut, 0.83 s minimum, reading speed
-<= max_cps: a cue over it first borrows what its neighbours can spare (the pause after it, up to
-0.3 s before its first word, up to 0.1 s of the next cue's lead), then it is reported (--strict
-exits 1). Text always comes from the script words; the script's
+short chunks merged forward, never a cue across a scene cut, 0.83 s minimum where the next cue
+allows it and never under 0.5 s (a shorter cue merges with a neighbour that fits). Reading speed:
+chunking aims at max_cps - 2 (19 chars/s for 21) so ASR jitter has room: a chunk spoken faster
+than that, which relief could not bring to it, becomes up to 4 shorter cues. The gate stays at
+max_cps: a cue over it borrows what its neighbours can spare (the pause after it, up to 0.3 s
+before its first word, up to 0.1 s of the next cue's lead; a neighbour with nothing to spare
+passes the request on to its own neighbour), as a last resort up to 0.5 s before its first word,
+then it is reported (--strict exits 1). Text always comes from the script words; the script's
 "display" map then turns spoken forms into written ones on word boundaries only
 ("five hundred and twenty-two" -> "522"); a phrase split across two cues stays spoken.
 Writes cues.json, captions.vtt, captions.srt and prints a QA summary as JSON.
@@ -17,12 +21,21 @@ Writes cues.json, captions.vtt, captions.srt and prints a QA summary as JSON.
 import argparse
 import itertools
 import json
+import math
 import os
 import re
 import sys
 
 ENGINE = os.path.dirname(os.path.abspath(__file__))
 STOP = {'a', 'an', 'the', 'at', 'of', 'to', 'and', 'or', 'in', 'on', 'by', 'for', 'with', 'is', 'that', 'its', 'it'}
+MIN_CUE, BORROW_LEAD, BORROW_LAG = 0.83, 0.3, 0.1
+LAST_LEAD = 0.5          # relief's last resort: a cue still too fast may start this far (s) before its first word
+LEAD, TAIL = 0.05, 0.25  # a cue shows from LEAD before its first word to TAIL after its last (time_cues)
+CPS_MARGIN = 2.0         # chunking aims at max_cps - CPS_MARGIN (19 for 21); the gate stays at max_cps
+MAX_SPLIT = 4            # a chunk spoken faster than that may become up to 4 cues (fast_split)
+MIN_PART = 0.5           # no cue shorter than this (s): fast_split never makes one, build merges one away
+RELIEF_DEPTH = 4         # relief passes a request on through at most this many neighbours each way
+MAX_CANDIDATES = 5000    # fast_split tries at most this many splits for one part count
 
 
 def load_config():
@@ -68,28 +81,132 @@ def balanced(ws, n):
     return best[1]
 
 
-def chunk(words, cuts, max_chars):
+def predicted(parts, after=None, cut=None):
+    """Each part's display time as time_cues gives it before relief: from LEAD before its first word to the next
+    part's lead, the last part to TAIL after its last word (at least MIN_CUE), never past the next chunk's lead
+    (`after`: that chunk's first word) or the next scene cut."""
+    out = []
+    for k, p in enumerate(parts):
+        s = p[0]['start'] - LEAD
+        if k + 1 < len(parts):
+            e = parts[k + 1][0]['start'] - LEAD
+        else:
+            e = max(p[-1]['end'] + TAIL, s + MIN_CUE)
+            if after is not None:
+                e = min(e, after - LEAD)
+            if cut is not None:
+                e = min(e, cut)
+        out.append(e - s)
+    return out
+
+
+def spoken_cps(ws):
+    """Characters over spoken time (first word's start to last word's end)."""
+    return len(text(ws)) / max(0.01, ws[-1]['end'] - ws[0]['start'])
+
+
+def stranded(p):
+    return p[-1]['text'].lower().strip(',.') in STOP
+
+
+def achievable(parts, lo, hi, after=None, cut=None):
+    """The lowest worst reading speed (chars/s) relief can give these consecutive parts: the first starts no earlier
+    than lo, each later one between BORROW_LEAD before and BORROW_LAG after its first word, the last ends by hi, and
+    no part shrinks below what it shows before relief or MIN_CUE, whichever is less (relief never takes a neighbour
+    below MIN_CUE). A stranded function word counts 8 extra characters. Binary search over the rate, greedy earliest
+    boundaries."""
+    sizes = [len(text(p)) + (8 if k + 1 < len(parts) and stranded(p) else 0) for k, p in enumerate(parts)]
+    floors = [min(MIN_CUE, d) for d in predicted(parts, after, cut)]
+
+    def fits(rate):
+        b = lo
+        for k, n in enumerate(sizes):
+            b += max(n / rate, floors[k])
+            if k + 1 < len(parts):
+                f = parts[k + 1][0]['start']
+                if b > f + BORROW_LAG:
+                    return False
+                b = max(b, f - BORROW_LEAD)
+        return b <= hi
+    r0, r1 = 1.0, 400.0
+    if not fits(r1):
+        return r1
+    for _ in range(40):
+        mid = (r0 + r1) / 2
+        r0, r1 = (r0, mid) if fits(mid) else (mid, r1)
+    return r1
+
+
+def fast_split(c, parts0, max_chars, target_cps, lo, hi, after=None, cut=None):
+    """Cues for words spoken faster than target_cps (a clause, or a chunk merged from short clauses). parts0, the
+    usual chunking, stays when relief can bring it to target_cps (achievable, between lo and hi). Otherwise the words
+    become more, shorter cues, so relief has more boundaries to move, with the boundaries placed by reading speed: of
+    the splits into len(parts0) to MAX_SPLIT contiguous parts that fit max_chars and each show at least MIN_PART
+    before relief, the fewest parts that reach target_cps, else the lowest worst rate (fewer parts on a tie)."""
+    if achievable(parts0, lo, hi, after, cut) <= target_cps:
+        return parts0
+    best = None
+    for n in range(len(parts0), max(len(parts0), min(MAX_SPLIT, len(c))) + 1):
+        if math.comb(len(c) - 1, n - 1) > MAX_CANDIDATES:  # a very long unpunctuated clause: keep the usual split
+            continue
+        for cut_at in itertools.combinations(range(1, len(c)), n - 1):
+            parts = [c[i:j] for i, j in zip((0,) + cut_at, cut_at + (len(c),))]
+            if any(len(text(p)) > max_chars for p in parts) or (n > 1 and min(predicted(parts, after, cut)) < MIN_PART):
+                continue
+            worst = achievable(parts, lo, hi, after, cut)
+            key = (worst > target_cps, n if worst <= target_cps else 0, round(worst, 2), n)
+            if best is None or key < best[0]:
+                best = (key, parts)
+    return best[1] if best else parts0
+
+
+def chunk(words, cuts, max_chars, target_cps=None):
+    """Word lists, one per cue: clause-first; a clause longer than max_chars is split into balanced parts; very short
+    chunks merge forward; then words spoken faster than target_cps that relief could not bring to it (a clause's
+    parts, or one merged chunk) become more, shorter cues with boundaries placed by reading speed (fast_split)."""
     scene_of = make_scene_of(cuts)
     chunks = []
-    for c in clauses_of(words, scene_of):
+    for ci, c in enumerate(clauses_of(words, scene_of)):
         n = 1
         while len(text(c)) > n * max_chars - (n - 1) or (n > 1 and max(len(text(p)) for p in balanced(c, n)) > max_chars):
             n += 1
             if n >= len(c):
                 n = len(c)
                 break
-        chunks.extend(balanced(c, n) if n > 1 else [c])
+        chunks.extend((p, ci) for p in (balanced(c, n) if n > 1 else [c]))
     # merge very short chunks (<14 chars) into the next when same scene, fits, and not a sentence end
     merged = []
-    for ch in chunks:
-        if merged and len(text(merged[-1])) < 14 and merged[-1][-1]['text'][-1] not in '.?!' \
-                and scene_of(merged[-1][0]['start']) == scene_of(ch[0]['start']) \
-                and len(text(merged[-1] + ch)) <= max_chars:
-            merged[-1] = merged[-1] + ch
+    for ch, ci in chunks:
+        if merged and len(text(merged[-1][0])) < 14 and merged[-1][0][-1]['text'][-1] not in '.?!' \
+                and scene_of(merged[-1][0][0]['start']) == scene_of(ch[0]['start']) \
+                and len(text(merged[-1][0] + ch)) <= max_chars:
+            merged[-1] = (merged[-1][0] + ch, ci if merged[-1][1] == ci else None)  # None: spans two clauses
         else:
-            merged.append(ch)
-    return [{'text': text(ch), 'start': ch[0]['start'], 'end': ch[-1]['end'], 'scene': scene_of(ch[0]['start'])}
-            for ch in merged]
+            merged.append((ch, ci))
+    if not target_cps:
+        return [ch for ch, _ in merged]
+    groups = []  # consecutive chunks of one clause, or one merged chunk
+    for ch, ci in merged:
+        if groups and ci is not None and groups[-1][1] == ci:
+            groups[-1][0].append(ch)
+        else:
+            groups.append(([ch], ci))
+    out = []
+    for k, (parts0, _) in enumerate(groups):
+        c = [w for p in parts0 for w in p]
+        if len(c) < 2 or spoken_cps(c) <= target_cps:
+            out.extend(parts0)
+            continue
+        f0 = c[0]['start']
+        own = max((x for x in cuts if x <= f0), default=0.0)
+        cut = next((x for x in cuts if x > f0), None)
+        lo = max(own, f0 - BORROW_LEAD)
+        if out and scene_of(out[-1][0]['start']) == scene_of(f0):  # the previous cue keeps what it needs
+            lo = max(lo, out[-1][0]['start'] - LEAD + max(MIN_CUE, len(text(out[-1])) / target_cps))
+        after = groups[k + 1][0][0][0]['start'] if k + 1 < len(groups) else None
+        hi = min(after + BORROW_LAG if after is not None else c[-1]['end'] + TAIL + 1.0, cut if cut is not None else 1e9)
+        out.extend(fast_split(c, parts0, max_chars, target_cps, lo, hi, after, cut))
+    return out
 
 
 def display_fn(dmap):
@@ -110,7 +227,6 @@ def apply_display(cues, dmap):
     return cues
 
 
-MIN_CUE, BORROW_LEAD, BORROW_LAG = 0.83, 0.3, 0.1
 
 
 def time_cues(cues, cuts, max_cps=None):
@@ -124,12 +240,12 @@ def time_cues(cues, cuts, max_cps=None):
     starts = []
     for c in cues:
         own = max((x for x in cuts if x <= c['start']), default=0.0)
-        starts.append(round(max(0.0, own, c['start'] - 0.05), 3))
+        starts.append(round(max(0.0, own, c['start'] - LEAD), 3))
     for i, c in enumerate(cues):
         cut = next((x for x in cuts if x > c['start']), 1e9)
         c['start'] = starts[i]
         nxt = starts[i + 1] if i + 1 < len(cues) else c['end'] + 1.0
-        c['end'] = round(min(c['end'] + 0.25, nxt, cut), 3)
+        c['end'] = round(min(c['end'] + TAIL, nxt, cut), 3)
         if c['end'] - c['start'] < MIN_CUE:
             c['end'] = round(min(c['start'] + MIN_CUE, nxt, cut), 3)
     if max_cps:
@@ -139,41 +255,93 @@ def time_cues(cues, cuts, max_cps=None):
     return cues
 
 
-def relieve(cues, firsts, cuts, max_cps):
+def relieve(cues, firsts, cuts, max_cps, depth=RELIEF_DEPTH):
     """Give a cue faster than max_cps the time it needs (len / max_cps) from what its neighbours can spare, in this
     order: the pause after it, an earlier start (at most BORROW_LEAD before its first word, never before the cut that
     opens its scene), then a later start for the next cue (at most BORROW_LAG after that cue's first word, never
-    across a cut). A neighbour never drops below its own need, so ASR timing jitter of a tenth or two of a second
-    cannot fail the reading-speed gate on its own, while genuinely fast speech still does."""
-    def need(c):
-        return max(MIN_CUE, len(c['text']) / float(max_cps) + 0.002)
+    across a cut). A neighbour never drops below its own need; when it has nothing to spare it can still move, within
+    the same limits, by passing the request on to its own neighbour (up to `depth` cues away), so the slack of a slow
+    cue reaches a run of fast ones. ASR timing jitter of a tenth or two of a second therefore cannot fail the
+    reading-speed gate on its own, while genuinely fast speech still does."""
+    n = len(cues)
+    own = [max((x for x in cuts if x <= f), default=0.0) for f in firsts]
+    cut = [next((x for x in cuts if x > f), 1e9) for f in firsts]
+
+    def need(i):
+        return max(MIN_CUE, len(cues[i]['text']) / float(max_cps) + 0.002)
+
+    def spare(i):
+        return max(0.0, cues[i]['end'] - cues[i]['start'] - need(i))
+
+    def pull_back(i, x, d, lead):
+        """Cue i ends up to x earlier: from its spare, then by starting earlier itself (at most `lead` before its
+        first word). Returns what it gave."""
+        c = cues[i]
+        got = min(x, spare(i))
+        c['end'] -= got
+        want = min(x - got, max(0.0, c['start'] - max(own[i], firsts[i] - lead)))
+        if want > 1e-9 and d > 0:
+            pause = max(0.0, c['start'] - cues[i - 1]['end']) if i > 0 else want
+            moved = min(want, pause)
+            if want - moved > 1e-9 and i > 0:
+                moved += pull_back(i - 1, want - moved, d - 1, lead)
+            c['start'] -= moved
+            c['end'] -= moved
+            got += moved
+        return got
+
+    def push_forward(i, x, d):
+        """Cue i starts up to x later: from its spare, then by ending later itself. Returns what it gave."""
+        c = cues[i]
+        x = min(x, max(0.0, min(firsts[i] + BORROW_LAG, cut[i]) - c['start']))
+        got = min(x, spare(i))
+        c['start'] += got
+        want = min(x - got, max(0.0, cut[i] - c['end']))
+        if want > 1e-9 and d > 0:
+            pause = max(0.0, cues[i + 1]['start'] - c['end']) if i + 1 < n else want
+            moved = min(want, pause)
+            if want - moved > 1e-9 and i + 1 < n and cues[i + 1]['start'] < cut[i]:
+                moved += push_forward(i + 1, want - moved, d - 1)
+            c['start'] += moved
+            c['end'] += moved
+            got += moved
+        return got
+
+    def earlier(i, short, lead):
+        """Cue i starts up to `short` earlier, at most `lead` before its first word: the pause before it, then the
+        previous cue (and, through it, the ones before). Returns how much it moved."""
+        c = cues[i]
+        want = min(short, max(0.0, c['start'] - max(own[i], firsts[i] - lead)))
+        moved = min(want, max(0.0, c['start'] - cues[i - 1]['end'])) if i > 0 else want
+        if want - moved > 1e-9 and i > 0:
+            moved += pull_back(i - 1, want - moved, depth, lead)
+        c['start'] -= moved
+        return moved
+
     for i, c in enumerate(cues):
-        short = need(c) - (c['end'] - c['start'])
+        short = need(i) - (c['end'] - c['start'])
         if len(c['text']) / max(0.01, c['end'] - c['start']) <= max_cps or short <= 0:
             continue
-        own = max((x for x in cuts if x <= firsts[i]), default=0.0)
-        cut = next((x for x in cuts if x > firsts[i]), 1e9)
-        nxt = cues[i + 1] if i + 1 < len(cues) else None
-        prv = cues[i - 1] if i > 0 else None
         # 1. the pause before the next cue (or the next cut)
-        room = min(nxt['start'] if nxt else c['end'] + short, cut) - c['end']
+        room = min(cues[i + 1]['start'] if i + 1 < n else c['end'] + short, cut[i]) - c['end']
         take = min(short, max(0.0, room))
-        c['end'] = round(c['end'] + take, 3)
+        c['end'] += take
         short -= take
-        # 2. start earlier
-        if short > 0:
-            lo = max(own, firsts[i] - BORROW_LEAD, (prv['start'] + need(prv)) if prv else 0.0)
-            take = min(short, max(0.0, c['start'] - lo))
-            c['start'] = round(c['start'] - take, 3)
-            if prv and prv['end'] > c['start']:
-                prv['end'] = c['start']
-            short -= take
-        # 3. the next cue starts a little later
-        if short > 0 and nxt and nxt['start'] < cut:
-            hi = min(cut, firsts[i + 1] + BORROW_LAG, nxt['end'] - need(nxt))
-            take = min(short, max(0.0, hi - c['end']))
-            c['end'] = round(c['end'] + take, 3)
-            nxt['start'] = max(nxt['start'], c['end'])
+        # 2. start earlier, up to BORROW_LEAD before the first word
+        if short > 1e-9:
+            short -= earlier(i, short, BORROW_LEAD)
+        # 3. the next cue starts a little later (and, through it, the ones after)
+        if short > 1e-9 and i + 1 < n and cues[i + 1]['start'] < cut[i]:
+            got = push_forward(i + 1, min(short, max(0.0, cut[i] - c['end'])), depth)
+            c['end'] += got
+            short -= got
+        # 4. last resort, still too fast to read: it (and the cues before it that it moves) may start up to LAST_LEAD
+        #    before the first word
+        short = len(c['text']) / float(max_cps) + 0.002 - (c['end'] - c['start'])
+        if short > 1e-9:
+            earlier(i, short, LAST_LEAD)
+    for c in cues:
+        c['start'], c['end'] = round(c['start'], 3), round(c['end'], 3)
 
 
 def ts(t, sep):
@@ -184,11 +352,34 @@ def ts(t, sep):
     return '%02d:%02d:%02d%s%03d' % (h, m, s, sep, ms)
 
 
-def build(words, cuts, max_chars, dmap=None, max_cps=None):
-    """Cues from aligned words. max_cps defaults to config.json's; a cue over it borrows neighbours' slack (relieve)."""
-    cues = chunk(words, cuts, max_chars)
-    apply_display(cues, dmap or {})
-    return time_cues(cues, cuts, load_config()['max_cps'] if max_cps is None else max_cps)
+def build(words, cuts, max_chars, dmap=None, max_cps=None, target_cps=None):
+    """Cues from aligned words. max_cps (the gate) defaults to config.json's; a cue over it borrows neighbours' slack
+    (relieve); 0 turns relief off. Chunking aims at target_cps, by default max_cps (or config's) - CPS_MARGIN; 0 turns
+    the reading-speed split off. A cue shorter than MIN_PART merges with a neighbour of its scene when the two fit
+    max_chars, and the cues are timed again."""
+    cfg_cps = load_config()['max_cps']
+    gate = cfg_cps if max_cps is None else max_cps
+    if target_cps is None:
+        target_cps = (gate or cfg_cps) - CPS_MARGIN
+    scene_of = make_scene_of(cuts)
+    fn = display_fn(dmap)
+    chunks = chunk(words, cuts, max_chars, target_cps)
+    while True:
+        cues = [{'text': fn(text(ch)), 'start': ch[0]['start'], 'end': ch[-1]['end'], 'scene': scene_of(ch[0]['start'])}
+                for ch in chunks]
+        time_cues(cues, cuts, gate)
+        for k, c in enumerate(cues):
+            if c['end'] - c['start'] >= MIN_PART - 1e-9:
+                continue
+            opts = [j for j in (k + 1, k - 1) if 0 <= j < len(chunks) and cues[j]['scene'] == c['scene']
+                    and len(fn(text(chunks[min(j, k)] + chunks[max(j, k)]))) <= max_chars]
+            if opts:
+                j = min(opts, key=lambda j: len(text(chunks[j])))
+                a, b = min(j, k), max(j, k)
+                chunks[a:b + 1] = [chunks[a] + chunks[b]]
+                break
+        else:
+            return cues
 
 
 def write(cues, out):

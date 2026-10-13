@@ -44,6 +44,7 @@ Each stage ends on its completion criterion (✔). Do not advance until it holds
 1. **Intake.** Run `python3 <skill>/engine/new_episode.py ./episodes <YYYY-MM-DD> <edition> --brief <brief> [--editor "<name>"]`.
    - `<YYYY-MM-DD>` is the episode date: the end of the brief's window, or today if it has none.
    - Pass `--editor` only with a name the user gave you; never infer it from git config or the account. The disclosure reads "not yet human-reviewed" until stage 10 records `reviewed_by`.
+   - The disclosure line is generated, never typed: "AI-produced · AI voice · every claim sourced" plus "reviewed by <reviewed_by>" or "not yet human-reviewed". Third-party credits (music, sfx, footage, images, translation, data) go in `credits` as `"<label>: <value>"` and print on their own "Credits" line.
    - `new_episode.py` reads `editions/<edition>.yaml`: its `label` becomes `edition` in `edit/episode.json`, its accent goes into `video/frame.md`. It refuses an edition with no YAML file.
    - Brief format: `references/brief-format.md`. Read the brief's own guardrails.
    - Keep the brief's story selection; if it has none, pick ≤3 stories by impact × novelty × evidence and record why in `edit/selection.md`.
@@ -57,7 +58,7 @@ Each stage ends on its completion criterion (✔). Do not advance until it holds
    - Otherwise, run the prompts one after another yourself. Save each result under `ledger/work/` before starting the next, and run the refuters as a separate pass that works from those files, not from memory.
    - Save `ledger/claims.json` (`[{story_id, ledger, refute}]`) and `ledger/leads.json`. Apply every refuter fix to the wording.
    - ✔ Every story claim has a status and either a verbatim quote or an explicit "unverifiable"; every refuted claim has a recorded fix.
-4. **Episode facts.** Fill `edit/episode.json` per `references/project-layout.md`: stories, badges (rule in `editorial.md`), PROVES / DOESN'T PROVE, matrix, chapters, `one_thing`, credit, and `stories[].scenes`.
+4. **Episode facts.** Fill `edit/episode.json` per `references/project-layout.md`: stories, badges (rule in `editorial.md`), PROVES / DOESN'T PROVE, matrix, chapters, `one_thing`, `credits` (third-party media or data, if any), credit, and `stories[].scenes`.
    - ✔ Every story has a badge, sources, receipts and scene ids.
 5. **Script.** Write `video/audio/script.json`. One line per scene, in this order:
    - the squeeze
@@ -89,9 +90,9 @@ Each stage ends on its completion criterion (✔). Do not advance until it holds
     - If they ask for changes instead, make them, go back to the first stage they affect, and stop here again.
     - ✔ The user explicitly approves in a new message. Then:
       1. Stop the preview: `npx -y hyperframes@<ver> preview --stop <episode>/video` (harmless if none is running).
-      2. Set `reviewed_by` (the name they give) and `reviewed_at` (today) in `edit/episode.json`. Don't write the review into `disclosure`: the close card, the companion page and `deliver.py` all derive the review segment from `reviewed_by` ("reviewed by <name>", else "not yet human-reviewed") and drop, with a warning, any `disclosure` segment that says a person reviewed, checked, approved, verified or edited the episode.
+      2. Set `reviewed_by` (the name they give, a person's name only) and `reviewed_at` (today) in `edit/episode.json`. Don't write anything into `disclosure`: the close card, the companion page and `deliver.py` all generate the line from fixed parts and `reviewed_by` ("reviewed by <name>", else "not yet human-reviewed"), and ignore any text in the legacy `disclosure` field with a warning. A `reviewed_by` that is not a name (commas, separators, extra words) is ignored too.
       3. Re-run `python3 <skill>/engine/fill_scenes.py <episode> --only close`, `python3 <skill>/engine/assemble.py <episode>/video` and `npx -y hyperframes@<ver> check --strict <episode>/video`. The close card now reads "reviewed by <name>".
-11. **Render + deliver.** Run `npx -y hyperframes@<ver> render -q delivery -w 3 -o <episode>/video/renders/master.mp4 <episode>/video`, then `python3 <skill>/engine/deliver.py <episode> --master <episode>/video/renders/master.mp4`. deliver.py refuses to run without `reviewed_by`; its `--unreviewed` flag is only for a draft the user asked for.
+11. **Render + deliver.** Run `npx -y hyperframes@<ver> render -q delivery -w 3 -o <episode>/video/renders/master.mp4 <episode>/video`, then `python3 <skill>/engine/deliver.py <episode> --master <episode>/video/renders/master.mp4`. deliver.py refuses to run without a `reviewed_by` name; its `--unreviewed` flag is only for a draft the user asked for.
     - ✔ deliver.py exits 0: duration, −16 ±1 LUFS, a web cut ≤15 MB, the flash check, captions, transcript, SOURCES and the companion page.
 
 Then hand the user the files, plus the platform checklist in `references/disclosure.md`. They publish; you never post.

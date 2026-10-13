@@ -265,6 +265,97 @@ class WhisperWorkedExampleTests(unittest.TestCase):
             self.assertEqual(json.loads(r.stdout)['violations'], [])
 
 
+class CollapsedTimestampTests(unittest.TestCase):
+    """Matched words the ASR put on one instant (Whisper; or the clamp onto a line's window edge) are spread from that
+    instant to the next distinct start, or to the line end, by character length."""
+
+    # the round-3 verifier's trial 56: three runs of 6 consecutive ASR words of episode 1's real Parakeet transcript
+    # collapsed onto one zero-length timestamp each (Whisper does this). The earlier alignment put "Humanity's Sixth
+    # Sense:" on one instant, so its cue lasted 0 s (92.275-92.275, 2300 chars/s).
+    TRIAL56 = [(226, 6, 92.325), (280, 6, 113.159), (380, 6, 149.725)]
+
+    def collapsed_ep1(self):
+        script, transcript, timeline = example()
+        tr = [dict(a) for a in transcript]
+        for k, n, t in self.TRIAL56:
+            for a in tr[k:k + n]:
+                a['start'] = a['end'] = t
+        return script, tr, timeline
+
+    def test_episode1_collapsed_like_whisper(self):
+        script, tr, timeline = self.collapsed_ep1()
+        words, _ = align.align(script, tr, timeline)
+        check_guarantees(self, words, timeline)
+        self.assertEqual([x['text'] for x in words], [t for L in script['lines'] for t in L['text'].split()])
+        by_start = {}
+        for x in words:
+            by_start.setdefault(x['start'], []).append(x['text'])
+        self.assertEqual([v for v in by_start.values() if len(v) > 1], [])  # no two words share a start any more
+        i = next(k for k, x in enumerate(words) if x['text'] == "Humanity's")
+        run_ = words[i - 1:i + 7]  # published Humanity's Sixth Sense: five hundred and twenty-two
+        self.assertEqual(run_[0]['start'], 92.325)
+        self.assertEqual(run_[-1]['end'], 96.23)  # to the next distinct start: "image", which the ASR kept
+        for a, b in zip(run_, run_[1:]):
+            self.assertAlmostEqual(a['end'], b['start'], places=3)
+            self.assertGreater(b['start'] - a['start'], 0.2)
+        cues = captions.build(words, timeline['cuts'], CFG['max_chars'], script['display'], CFG['max_cps'])
+        for c in cues:
+            self.assertGreaterEqual(c['end'] - c['start'], 0.5, c)
+            self.assertLessEqual(c['cps'], CFG['max_cps'], c)
+        self.assertIn("Humanity's Sixth Sense:", [c['text'] for c in cues])
+
+    def test_near_equal_starts_are_spread_by_length(self):
+        # Whisper on the worked example: "Three" 0.47-0.49, "AI" 0.49-0.66, "developments," 0.66-1.97
+        script, transcript, timeline = worked_example('whisper')
+        words, _ = align.align(script, transcript, timeline)
+        three, ai, dev = words[:3]
+        self.assertEqual((three['start'], three['end'], ai['start']), (0.47, 0.597, 0.597))  # 6:3 characters of 0.19 s
+        self.assertEqual(ai['end'], round(ai['start'] + align.MIN_DUR, 3))
+        self.assertEqual((dev['start'], dev['end']), (0.66, 1.97))  # a distinct start: untouched
+
+    def test_collapsed_line_end_spreads_to_the_line_end(self):
+        script, tr, tl = synth(['The result is new, or the result is checked, or the statement is the claim.'])
+        T = tl['lines'][0]
+        end = round(T['start'] + T['dur'], 3)
+        tr = [dict(a) for a in tr]
+        for a in tr[-4:]:  # "statement is the claim." on one instant
+            a['start'] = a['end'] = tr[-4]['start']
+        words, _ = align.align(script, tr, tl)
+        check_guarantees(self, words, tl)
+        tail = words[-4:]
+        self.assertEqual(tail[0]['start'], tr[-4]['start'])
+        self.assertEqual(tail[-1]['end'], end)
+        self.assertEqual(len({x['start'] for x in tail}), 4)
+
+    def test_adjacent_collapsed_runs_spread_together(self):
+        # two collapsed instants 0.12 s apart: spreading the first run over 0.12 s alone would make it 4 fast words
+        script, tr, tl = synth(['A passing check proves one thing: its exact formal statement, not that the result is new.'])
+        tr = [dict(a) for a in tr]
+        k = next(i for i, a in enumerate(tr) if a['text'] == 'its')
+        for j, a in enumerate(tr[k:k + 10]):
+            a['start'] = a['end'] = tr[k]['start'] + (0.0 if j < 4 else 0.12)
+        words, _ = align.align(script, tr, tl)
+        check_guarantees(self, words, tl)
+        run_ = words[k:k + 10]
+        for a, b in zip(run_, run_[1:]):
+            self.assertAlmostEqual(a['end'], b['start'], places=3)
+        rates = [(len(x['text']) + 1) / (x['end'] - x['start']) for x in run_]
+        self.assertLess(max(rates) - min(rates), 0.5)  # one spread at one rate, not 4 words squeezed into 0.12 s
+
+    def test_perfect_and_real_parakeet_transcripts_are_untouched(self):
+        script, tr, tl = synth(RobustnessTests.TEXTS)
+        words, _ = align.align(script, tr, tl)
+        self.assertEqual([(x['start'], x['end']) for x in words], [(a['start'], a['end']) for a in tr])
+        collapse = align.COLLAPSE
+        for s, tr, tl in (worked_example('parakeet'), example()):  # Parakeet's starts are >= 0.08 s apart: no collapse
+            words, _ = align.align(s, tr, tl)
+            try:
+                align.COLLAPSE = 0.0  # spreading off
+                self.assertEqual(words, align.align(s, tr, tl)[0])
+            finally:
+                align.COLLAPSE = collapse
+
+
 def synth(texts, gap=0.8, rate=0.3, lead_in=0.35):
     """A script, its timeline and a perfect transcript: every word lasts `rate` seconds, lines `gap` apart."""
     script = {'lines': [{'id': 'L%d' % (i + 1), 'scene': 's%d' % i, 'text': t} for i, t in enumerate(texts)]}

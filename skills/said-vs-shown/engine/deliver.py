@@ -4,8 +4,8 @@
 usage: deliver.py <episode_dir> --master <rendered.mp4> [--poster-at SECONDS] [--repo-url URL]
                   [--max-mb 15] [--lufs -16] [--no-companion] [--unreviewed]
 
-Refuses to run until edit/episode.json has "reviewed_by" (the stage 10 review). --unreviewed makes a draft
-delivery anyway; its disclosure then reads "not yet human-reviewed".
+Refuses to run until edit/episode.json has "reviewed_by" (the stage 10 review), a person's name (companion.reviewer_of).
+--unreviewed makes a draft delivery anyway; its disclosure then reads "not yet human-reviewed".
 
 Writes only into <episode_dir>/deliver/:
   <slug>.mp4          the master, loudness-normalized (engine/loudfix.sh when present, else inline two-pass loudnorm)
@@ -14,7 +14,8 @@ Writes only into <episode_dir>/deliver/:
   captions.vtt/.srt   copies of video/audio/captions.*
   transcript.md       script lines with their start times (audio/script.json + audio/timeline.json), spoken
                       forms written out with the script's "display" map, as in the captions
-  SOURCES.md          story sources, other leads and the source map (episode.json, leads.json, sources.json)
+  SOURCES.md          story sources, other leads, the source map (episode.json, leads.json, sources.json), and the
+                      disclosure line and episode.json "credits" (validated, companion.credits_of)
   chapters.txt        YouTube-style chapters (episode.json "chapters" + the timeline)
   companion/          the static companion page (companion.py), with the web cut and poster copied in
 QA gates (exit 1 if any fails): duration matches the timeline, integrated loudness within 1 LU of the target,
@@ -183,9 +184,9 @@ def main(argv):
     cfg = C.config()
     target = opts['lufs'] if opts['lufs'] is not None else float(cfg.get('lufs', -16))
     E = C.load_episode(ep)
-    if not str(E.get('reviewed_by') or '').strip():
+    if not C.reviewer_of(E, warn_to=sys.stderr):
         if not opts['unreviewed']:
-            die('edit/episode.json has no "reviewed_by": the user reviews the episode first (SKILL.md stage 10). '
+            die('edit/episode.json has no "reviewed_by" name: the user reviews the episode first (SKILL.md stage 10). '
                 'Pass --unreviewed for a draft delivery (its disclosure says "not yet human-reviewed").')
         print('deliver.py: warning: no reviewed_by; draft delivery, disclosure reads "not yet human-reviewed"', file=sys.stderr)
     V = os.path.join(ep, 'video')
@@ -257,6 +258,10 @@ def main(argv):
     if srcmap:
         src_lines += ['', '## Source map']
         src_lines += [f'- {k} {v}' for k, v in srcmap.items()]
+    src_lines += ['', '## Disclosure', '', C.disclosure_of(E, warn_to=None)]
+    credits = C.credits_of(E, warn_to=None)
+    if credits:
+        src_lines += ['', '## Credits', ''] + [f'- {x}' for x in credits]
     write(os.path.join(D, 'SOURCES.md'), '\n'.join(src_lines) + '\n')
 
     chapters = C.chapters_of(E, scenes, tl, need_zero=True)

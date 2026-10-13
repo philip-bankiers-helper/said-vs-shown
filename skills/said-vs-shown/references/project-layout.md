@@ -57,7 +57,7 @@ Paths below are relative to the **episode root** `<episodes>/<YYYY-MM-DD>_<editi
   "editor": "Philip Bankier",
   "reviewed_by": "Philip Bankier",
   "reviewed_at": "2026-10-11",
-  "disclosure": "AI-produced · AI voice · every claim sourced",
+  "credits": ["music: CC0 loops by <artist>"],
   "credit": true,
   "lead_badge_overrides": { "6": "company" },
   "stories": [
@@ -82,7 +82,9 @@ Optional keys read by `fill_scenes.py`:
 - top level: `close_title`, `payoff_statement`, `payoff_highlight`, `one_thing_lead`, `one_thing_kicker`, `reviewed_by`, `reviewed_at`;
 - leads and stories: `card_title` (a ≤ 4-word card label).
 
-Every tool builds the disclosure line the same way (`companion.disclosure_of`, used by `fill_scenes.py` for the close card and by `companion.py`, which `deliver.py` runs, for the page): the known parts "AI-produced · AI voice · every claim sourced", then any other segment of `disclosure` that says nothing about a person checking the episode, then the one generated segment: "reviewed by <reviewed_by>" once the user has reviewed the episode (stage 10), or "not yet human-reviewed" until then. A segment that mentions review, checking, approval, verification, an editor or editing by a person ("fact-checked by …", "approved by …", "Reviewer: …", "verified by a human editor", ...) is dropped, wherever it sits, with a warning (`fill_scenes.py` lists it in its notes). So no text in `disclosure` can claim a check that `reviewed_by` does not record. `new_episode.py` writes the starter line "AI-produced · AI voice · every claim sourced · not yet human-reviewed". `deliver.py` refuses to run without `reviewed_by` unless given `--unreviewed`. `editor` only records who edits the episode; it never implies a review.
+The disclosure line is generated, the same way by every tool (`companion.disclosure_of`, used by `fill_scenes.py` for the close card, by `companion.py` for the page and by `deliver.py` for `SOURCES.md`): the fixed parts "AI-produced · AI voice · every claim sourced", then one generated segment, "reviewed by <reviewed_by>" once the user has reviewed the episode (stage 10), or "not yet human-reviewed" until then. Nothing typed in `episode.json` enters it. `reviewed_by` must be a person's name (1–5 capitalised words of letters and `. ' -`, name particles such as "de la" or "van" allowed, ≤ 60 characters); anything else is ignored with a warning and counts as not reviewed. The legacy `disclosure` field is not read: any text in it beyond those segments is ignored with a warning that points to `credits`.
+
+`credits` lists third-party credits, each `"<label>: <value>"` with a label from `music`, `sfx`, `footage`, `images`, `translation`, `data` (any case) and a plain value (≤ 80 characters; no `·`, `|`, `;` or markup). They print on their own line, "Credits: music: … · data: …", under the disclosure on the close card and on the page, and in `SOURCES.md`; never in the disclosure line. Any other entry is dropped with a warning (`fill_scenes.py` lists warnings in its notes). `new_episode.py` writes `"credits": []` and no `disclosure`. `deliver.py` refuses to run without a `reviewed_by` name unless given `--unreviewed`. `editor` only records who edits the episode; it never implies a review. `credit` (true/false) is different: it turns the "Made with Said vs. Shown" footer on or off.
 
 `test` is the short board label (≤ 26 characters, e.g. "formal proof check"). The board slot is 450 px wide and longer text overflows it. The full wording goes in `matrix`.
 

@@ -147,7 +147,7 @@ Every on-screen claim is traced to the ledger by the agent at the script stage (
 
 ## Using it responsibly
 
-- **Disclosure is built in.** Videos carry an "AI-produced · AI voice · every claim sourced · reviewed by <you>" line; until you review the episode it reads "not yet human-reviewed". Platforms differ: Meta requires an AI label for realistic AI voiceovers, and YouTube asks you to disclose realistic synthetic content. Label your uploads.
+- **Disclosure is built in.** Videos carry an "AI-produced · AI voice · every claim sourced · reviewed by <you>" line; until you review the episode it reads "not yet human-reviewed". The tools generate that line; nothing typed into the episode can extend it. Credits for third-party music, sound, footage, images, translation or data go in `credits` (`"music: …"`) and print on their own line. Platforms differ: Meta requires an AI label for realistic AI voiceovers, and YouTube asks you to disclose realistic synthetic content. Label your uploads.
 - **A human reviews every episode before it's published.** The skill stops for that review.
 - **The badges and PROVES / DOESN'T PROVE are editorial judgments made from the sources you gave it.** They show what the sources support, not absolute truth.
 - **Screenshots of third-party pages are quotation for commentary.** Keep crops tight on the quoted sentence, credit the source on screen, and don't put outlet photos or logos in thumbnails.

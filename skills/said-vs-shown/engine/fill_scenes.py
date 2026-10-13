@@ -7,7 +7,7 @@ usage: fill_scenes.py <episode_dir> [--only squeeze,close] [--dry-run]
 
 Reads
   edit/episode.json             show, edition, window, date, captured, title, stories, matrix, one_thing,
-                                one_thing_highlight, editor / reviewed_by, disclosure, credit, lead_badge_overrides
+                                one_thing_highlight, editor / reviewed_by, credits, credit, lead_badge_overrides
                                 optional: close_title, payoff_statement, payoff_highlight, one_thing_lead, one_thing_kicker
   ledger/leads.json             the other leads (card_title or title, status) → squeeze cards and counts
   ledger/sources.json           sources captured (count); falls back to ledger/capture-log.jsonl (ok lines)
@@ -22,6 +22,7 @@ tool (boards, boundaries). Exit 1 if a requested scene could not be filled.
 """
 import argparse
 import glob
+import io
 import json
 import os
 import re
@@ -30,7 +31,7 @@ import sys
 ENGINE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(ENGINE)
 sys.path.insert(0, ENGINE)
-from companion import disclosure_of, disclosure_parts  # noqa: E402  (one disclosure rule for the video and the page)
+from companion import credits_of, disclosure_of, reviewer_of  # noqa: E402  (one disclosure rule for the video and the page)
 TEMPLATES = os.path.join(SKILL, 'templates', 'scenes')
 KINDS = ('squeeze', 'payoff', 'one-thing', 'close')
 DEFAULT_ACCENT = '#f2c14e'
@@ -298,14 +299,21 @@ class Episode:
                 n += 1
         return n
 
+    def _warnings(self, fn):
+        """Run fn(E, warn_to) and keep each warning it prints as a note."""
+        buf = io.StringIO()
+        out = fn(self.E, buf)
+        self.notes.extend('warning: ' + l.split('warning: ', 1)[-1] for l in buf.getvalue().splitlines() if l.strip())
+        return out
+
     def disclosure(self):
-        if not str(self.E.get('reviewed_by') or '').strip():
+        if not reviewer_of(self.E):
             self.notes.append('no reviewed_by yet: the disclosure reads "not yet human-reviewed"; after the review '
                               '(stage 10) set reviewed_by and re-run fill_scenes.py --only close')
-        for s in disclosure_parts(self.E)[1]:
-            self.notes.append(f'warning: disclosure segment {s!r} dropped: only "reviewed_by" (stage 10) may say a '
-                              f'person checked the episode; remove it from episode.json "disclosure"')
-        return disclosure_of(self.E, warn_to=None)
+        return self._warnings(disclosure_of)
+
+    def credits(self):
+        return self._warnings(credits_of)
 
 
 # ── scene builders ───────────────────────────────────────────────────────────────────────────────
@@ -563,6 +571,7 @@ def build_close(ep, W, bt):
             'stories': stories,
             'counts': counts,
             'disclosure': ep.disclosure(),
+            'credits': ep.credits(),
             'credit': bool(E.get('credit', True)),
         },
         'beats': {'title': title, 'receipt': rc, 'cta_a': cta_a, 'cta_b': cta_b, 'key': key},

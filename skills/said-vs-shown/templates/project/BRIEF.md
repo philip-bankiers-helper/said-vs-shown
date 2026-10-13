@@ -20,7 +20,7 @@ Said vs. Shown, <Edition> edition, dated <YYYY-MM-DD> (window <window>). An evid
 ## Assets
 
 - ../input/brief.md: the source brief (its editorial guardrails are binding).
-- ../edit/episode.json: every on-screen fact (stories, badges, matrix, sources, disclosure).
+- ../edit/episode.json: every on-screen fact (stories, badges, matrix, sources, reviewed_by, credits).
 - assets/receipts/Rnn-*.png (+ .json): real 2x captures with the quote's line rects (engine/receipt.mjs).
 - audio/narration.wav, audio/scene-words.json: the voice and its per-scene word timings (engine/voice.py).
 - assets/fonts/: Newsreader + IBM Plex Mono (OFL; see assets/fonts/FONTS.md).
@@ -31,7 +31,7 @@ Said vs. Shown, <Edition> edition, dated <YYYY-MM-DD> (window <window>). An evid
 - Squeeze open: the lead cards with confidence badges collapse; the rest go to an "on the page" pile, the stories rise to the story row with empty TEST slots (the payoff fills them).
 - Receipts: real page capture, camera push-in (coordinate-target-zoom), highlighter sweep synced to the spoken words, one bespoke ILLUSTRATION per story.
 - Evidence boundary: the dashed accent line is the series motif; PROVES | DOESN'T PROVE split.
-- Closing card: a printed receipt (frame.md → Brand) with sources, computed counts and the disclosure line.
+- Closing card: a printed receipt (frame.md → Brand) with sources, computed counts, the generated disclosure line and any credits.
 - Burned-in phrase captions (not word karaoke) + VTT/SRT sidecars at delivery.
 - Sound marks only, at low level; no music bed.
 

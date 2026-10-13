@@ -10,8 +10,9 @@ copies deliver/<slug>-web.mp4 and deliver/poster.jpg in when they exist (deliver
 the page is relative. No caption <track>: captions are burned into the video, VTT/SRT ship next to the master.
 
 The page: player + chapters, the one thing, the claim/test matrix, each story with PROVES | DOESN'T PROVE and its
-receipts, the other leads with badges, a click-to-seek transcript, "The receipt" (computed counts + the
-disclosure line) and the badge legend; a "Made with Said vs. Shown" footer when episode.json "credit" is true.
+receipts, the other leads with badges, a click-to-seek transcript, "The receipt" (computed counts, the generated
+disclosure line and, on its own line, any validated episode.json "credits") and the badge legend; a "Made with
+Said vs. Shown" footer when episode.json "credit" is true.
 Every fact comes from episode.json, the ledger or the timeline.
 """
 import html
@@ -209,50 +210,103 @@ def install_line(repo_url):
 
 DISCLOSURE_PARTS = ('AI-produced', 'AI voice', 'every claim sourced')
 DISCLOSURE_BASE = ' · '.join(DISCLOSURE_PARTS)
+UNREVIEWED = 'not yet human-reviewed'
 
-# Any segment that speaks about a person checking the episode. Generous on purpose: dropping a harmless segment
-# costs a warning, keeping a false "fact-checked by Sam" next to "not yet human-reviewed" costs the disclosure.
-HUMAN_CHECK_CLAIM = re.compile(
-    r'review|check|approv|verif|vett?(?:ed|ing)\b|\bvet\b|editor|editorial|\bedit(?:ed|s|ing)?\b|proof-?read|'
-    r'audit|sign(?:ed|s)?[- ]?off|oversight|oversee|supervis|validat|confirm|vouch|endors|certif|accredit|'
-    r'\bhuman|\bperson\b|\bpeople\b|journalist|staff|moderat|curat|scrutin|inspect|cleared\b|\bok(?:ay)?ed\b',
-    re.I)
+# reviewed_by is a person's name: 1-5 words of letters (any script) with . ' ’ - inside a word, at most 60
+# characters, every word capitalised (or from a script without case) except name particles ("de la", "van", "al-")
+NAME_WORD = re.compile(r"[^\W\d_](?:[^\W\d_]|[.'’-])*")
+NAME_PARTICLES = {'de', 'da', 'das', 'del', 'della', 'der', 'den', 'des', 'di', 'do', 'dos', 'du', 'la', 'le', 'van',
+                  'von', 'zu', 'ter', 'ten', 'bin', 'ibn', 'al', 'el', 'y', 'e', 'af', 'av'}
+PARTICLE_PREFIX = re.compile(r"(?:al|el|ad|ar|as|at|d|l|da|de|di|du)['’-][^\W\d_].*")
+# credits: "<label>: <value>", the label from this list only, the value one plain phrase (no separators, no markup)
+CREDIT_LABELS = ('music', 'sfx', 'footage', 'images', 'translation', 'data')
+CREDIT = re.compile(r'(%s) ?: ?([\w .,\'’&()/+:#@%%!?"“”–-]{1,80})' % '|'.join(CREDIT_LABELS), re.I)
 
 
-def disclosure_parts(E):
-    """(segments, dropped): the disclosure's segments and the user segments left out.
+def is_name(s):
+    """True for what reads as a person's name ("Jane Doe", "Dr. Lee", "Mary-Ann O'Neil", "Ana de la Cruz")."""
+    words = s.split(' ')
+    if not 1 <= len(words) <= 5 or len(s) > 60 or not all(NAME_WORD.fullmatch(w) for w in words):
+        return False
 
-    The known parts (AI-produced · AI voice · every claim sourced) come first, then each segment of
-    episode.json "disclosure" that is not one of them and says nothing about human checking, review,
-    approval, verification or editing by a person, then the one generated segment: "reviewed by <reviewed_by>"
-    when a named person reviewed the episode (stage 10), else "not yet human-reviewed"."""
-    reviewer = ' '.join(str(E.get('reviewed_by') or '').split())
-    generated = f'reviewed by {reviewer}' if reviewer else 'not yet human-reviewed'
-    # the tools' own last segment, written back into episode.json (new_episode.py does): dropped without a warning
-    own = {'not yet human-reviewed', generated.lower()}
-    segs, dropped = list(DISCLOSURE_PARTS), []
-    for s in str(E.get('disclosure') or '').split('·'):
-        s = ' '.join(s.split())
-        if not s or s.lower() in {x.lower() for x in segs} or s.lower() in own:
+    def capital(w):
+        return w[0].isupper() or not w[0].islower()  # caseless scripts have neither case
+
+    def particle(w):
+        return w.lower() in NAME_PARTICLES or bool(PARTICLE_PREFIX.fullmatch(w))
+    return all(capital(w) or particle(w) for w in words) and any(capital(w) for w in words)
+
+
+def _say(warn_to, msg):
+    if warn_to is not None:
+        print(f'said-vs-shown: warning: {msg}', file=warn_to)
+
+
+def reviewer_of(E, warn_to=None):
+    """The name episode.json "reviewed_by" records (stage 10), or None: unset, or not a name (is_name), which is
+    named in a warning on warn_to and counts as not reviewed."""
+    raw = E.get('reviewed_by')
+    name = ' '.join(str(raw or '').split())
+    if not name:
+        return None
+    if not is_name(name):
+        _say(warn_to, f'reviewed_by {raw!r} ignored: it must be the reviewer\'s name (capitalised words of letters and '
+                      f'. \' - only, at most 5 words and 60 characters); the disclosure says "{UNREVIEWED}"')
+        return None
+    return name
+
+
+def credits_of(E, warn_to=sys.stderr):
+    """episode.json "credits" (a list of "<label>: <value>", label one of CREDIT_LABELS, any case) as normalised
+    strings ("music: CC0 loops by Kevin MacLeod"). Anything else is dropped with a warning on warn_to (None: silent).
+    Credits print on their own "Credits" line (credits_line), never in the disclosure line."""
+    raw = E.get('credits')
+    if raw in (None, '', []):
+        return []
+    items = [raw] if isinstance(raw, str) else raw if isinstance(raw, list) else None
+    if items is None:
+        _say(warn_to, f'credits {raw!r} ignored: write a list of "<label>: <value>" ({", ".join(CREDIT_LABELS)})')
+        return []
+    out = []
+    for item in items:
+        s = ' '.join(item.split()) if isinstance(item, str) else ''
+        m = CREDIT.fullmatch(s) if s else None
+        if not m:
+            _say(warn_to, f'credit {item!r} dropped: write "<label>: <value>" with a label from {", ".join(CREDIT_LABELS)} '
+                          f'and a plain value (at most 80 characters, no · | ; or markup)')
             continue
-        if HUMAN_CHECK_CLAIM.search(s):
-            dropped.append(s)
-        else:
-            segs.append(s)
-    return segs + [generated], dropped
+        out.append(f'{m.group(1).lower()}: {m.group(2).strip()}')
+    return out
+
+
+def credits_line(credits):
+    """The "Credits" line for the close card and the page, or '' when there are none."""
+    return ('Credits: ' + ' · '.join(credits)) if credits else ''
+
+
+def disclosure_parts(E, warn_to=None):
+    """The disclosure's segments: the fixed parts (AI-produced · AI voice · every claim sourced), then the one
+    generated review segment, "reviewed by <reviewed_by>" when reviewer_of(E) has a name, else "not yet
+    human-reviewed". Nothing from episode.json "disclosure" ever enters it: when that legacy field holds anything
+    beyond these segments it is ignored, with a warning that points to "credits"."""
+    reviewer = reviewer_of(E, warn_to)
+    generated = f'reviewed by {reviewer}' if reviewer else UNREVIEWED
+    known = {x.lower() for x in DISCLOSURE_PARTS} | {UNREVIEWED, generated.lower()}
+    extra = [seg for seg in (' '.join(x.split()) for x in str(E.get('disclosure') or '').split('·'))
+             if seg and seg.lower() not in known]
+    if extra:
+        _say(warn_to, f'episode.json "disclosure" text {" · ".join(extra)!r} ignored: the disclosure line is generated '
+                      f'("{DISCLOSURE_BASE} · reviewed by <reviewed_by>"). Put third-party credits in "credits", e.g. '
+                      f'["music: CC0 loops by <artist>"] (labels: {", ".join(CREDIT_LABELS)}); a review is recorded '
+                      f'only by "reviewed_by" (stage 10).')
+    return list(DISCLOSURE_PARTS) + [generated]
 
 
 def disclosure_of(E, warn_to=sys.stderr):
     """The one disclosure line for the video (fill_scenes.py close), the page and deliver.py (frame.md → Disclosure
-    line format), built by disclosure_parts: only reviewed_by can make it say a person reviewed the episode, so no
-    text in episode.json can claim a review, check or approval that reviewed_by does not record. Every user segment
-    it drops is named in a warning on warn_to (None: silent)."""
-    segs, dropped = disclosure_parts(E)
-    if dropped and warn_to is not None:
-        for s in dropped:
-            print(f'said-vs-shown: warning: disclosure segment {s!r} dropped: only "reviewed_by" (stage 10) may say '
-                  f'a person checked the episode', file=warn_to)
-    return ' · '.join(segs)
+    line format): fixed parts plus the generated review segment (disclosure_parts). User free text never enters it;
+    whatever is ignored is named in a warning on warn_to (None: silent)."""
+    return ' · '.join(disclosure_parts(E, warn_to))
 
 
 def build(ep_dir, out, video_name=None, repo_url=None, install=None):
@@ -343,6 +397,8 @@ def build(ep_dir, out, video_name=None, repo_url=None, install=None):
     <div class="leads">{''.join(lead_cards)}</div>
   </section>''' if leads else '')
     disclosure = f'<p class="disc">{esc(disclosure_of(E))}</p>'
+    cred = credits_line(credits_of(E))
+    disclosure += f'\n      <p class="credits">{esc(cred)}</p>' if cred else ''
     footer = (f'''<footer class="credit">
     <span class="mono">Made with <a href="{esc(repo_url)}">{TOOL_NAME}</a></span>
     <a class="url" href="{esc(repo_url)}">{esc(re.sub(r"^https?://", "", repo_url))}</a>
@@ -444,6 +500,7 @@ h2 {{ font-weight: 500; font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; 
 .label h3 {{ font-family: var(--serif); font-weight: 700; font-size: 26px; margin: 0 0 6px; text-transform: none; letter-spacing: 0; }}
 .label .row {{ display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 6px 0; }}
 .label .disc {{ margin: 0; border-top: 2px solid var(--paper); padding-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.5; }}
+.label .credits {{ margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }}
 .legend {{ display: flex; flex-direction: column; gap: 10px; font-size: 16px; }}
 .legend div {{ display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: baseline; }}
 section > h2.sec {{ font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-ink); font-weight: 600; margin: 0 0 16px; }}

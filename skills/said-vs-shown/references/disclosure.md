@@ -4,7 +4,7 @@ This skill never posts. Use this checklist when the user publishes. Platform pol
 
 ## In every video and page
 
-- **Closing card and companion page:** carry the disclosure line, e.g. "AI-produced · AI voice · every claim sourced · reviewed by <name>". The tools derive its last segment from `episode.json` → `reviewed_by`, which is set only when a human actually reviewed the episode (stage 10); until then it reads "not yet human-reviewed". Wording about human checking typed into `disclosure` ("fact-checked by …", "approved by …") is dropped with a warning.
+- **Closing card and companion page:** carry the disclosure line, e.g. "AI-produced · AI voice · every claim sourced · reviewed by <name>". The tools generate it: fixed parts plus one segment from `episode.json` → `reviewed_by`, which is set only when a human actually reviewed the episode (stage 10); until then it reads "not yet human-reviewed". No typed text enters it: the legacy `disclosure` field is ignored with a warning, and a `reviewed_by` that is not a person's name counts as not reviewed. Third-party credits (`credits`: `"music: …"`, `"sfx: …"`, `"footage: …"`, `"images: …"`, `"translation: …"`, `"data: …"`) print on their own "Credits" line under it. Copy both lines into the video description.
 - **Description or caption:** the same line, plus the source list or a link to the companion page.
 
 ## Per platform

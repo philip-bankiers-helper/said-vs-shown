@@ -1,16 +1,30 @@
 import os
+import random
 import sys
 import tempfile
 import unittest
 
-from helpers import ENGINE, example, load, run, save
+from helpers import ENGINE, example, load, run, save, worked_example
 
 import align
 import captions
 
+CFG = load(os.path.join(ENGINE, 'config.json'))
+
 
 def w(text, start, end):
     return {'text': text, 'start': start, 'end': end}
+
+
+def even(text, start, end):
+    """Words of `text` spread evenly over [start, end]."""
+    toks = text.split()
+    d = (end - start) / len(toks)
+    return [w(t, round(start + d * i, 3), round(start + d * (i + 1), 3)) for i, t in enumerate(toks)]
+
+
+def gate_fails(cues):
+    return [c for c in cues if c['cps'] > CFG['max_cps'] or len(c['text']) > CFG['max_chars']]
 
 
 class CaptionsExampleTests(unittest.TestCase):
@@ -153,6 +167,135 @@ class ReliefTests(unittest.TestCase):
         words, _ = align.align(script, transcript, timeline)
         self.assertEqual(captions.build(words, timeline['cuts'], 42, script['display'], 21),
                          captions.build(words, timeline['cuts'], 42, script['display'], 0))
+
+
+def fast_clause(second):
+    """One clause longer than 42 characters, spoken fast, between a slow line and a scene cut (4.85-4.9 s)."""
+    return (even('Every source is on the page today,', 0.3, 2.6) + even('and that the statement', 3.0, 3.95) +
+            even(second, 4.0, 4.75) + even('Next scene starts here.', 5.0, 6.5))
+
+
+class ChainReliefTests(unittest.TestCase):
+    """A fast cue next to another fast cue: the slack of the slow cue before them reaches the second one through the
+    first (which starts earlier itself), and as a last resort a cue may start up to LAST_LEAD before its first word."""
+
+    def check(self, cues, words, cuts):
+        firsts = {}
+        for c in cues:
+            first = next(x for x in words if c['text'].split()[0] == x['text'] and x['start'] >= c['start'] - 1.0)
+            firsts[c['text']] = first['start']
+            self.assertGreaterEqual(c['start'], first['start'] - captions.LAST_LEAD - 1e-9, c)
+            for cut in cuts:
+                self.assertFalse(c['start'] < cut - 1e-6 < c['end'] - 2e-6, (c, cut))
+        for a, b in zip(cues, cues[1:]):
+            self.assertLessEqual(a['end'], b['start'] + 1e-9, (a, b))
+        return firsts
+
+    def test_slack_passes_through_a_fast_neighbour(self):
+        words, cuts = fast_clause('matches the paper claim.'), [4.9]
+        cues = captions.build(words, cuts, 42)
+        self.assertEqual(gate_fails(cues), [])
+        firsts = self.check(cues, words, cuts)
+        for c in cues:  # the usual 0.3 s lead was enough: no last resort
+            self.assertGreaterEqual(c['start'], firsts[c['text']] - captions.BORROW_LEAD - 1e-9, c)
+        self.assertLess(cues[1]['start'], 3.0 - captions.LEAD - 1e-6)  # the first fast cue moved to make room
+        relieve = captions.relieve
+        try:  # relief limited to direct neighbours (the earlier rule) leaves the second fast cue over the gate
+            captions.relieve = lambda *a, **k: relieve(*a, depth=0)
+            self.assertTrue(gate_fails(captions.build(words, cuts, 42)))
+        finally:
+            captions.relieve = relieve
+
+    def test_last_resort_lead_is_bounded(self):
+        words, cuts = fast_clause("matches the paper's claim."), [4.85]
+        cues = captions.build(words, cuts, 42)
+        self.assertEqual(gate_fails(cues), [])
+        firsts = self.check(cues, words, cuts)
+        self.assertTrue(any(c['start'] < firsts[c['text']] - captions.BORROW_LEAD - 1e-6 for c in cues), cues)
+        last = captions.LAST_LEAD
+        try:
+            captions.LAST_LEAD = captions.BORROW_LEAD
+            self.assertTrue(gate_fails(captions.build(words, cuts, 42)))
+        finally:
+            captions.LAST_LEAD = last
+
+
+class ReadingSpeedSplitTests(unittest.TestCase):
+    """Chunking aims at max_cps - 2: words spoken faster than that, which relief could not bring to it, become up to
+    4 cues with their boundaries placed by reading speed, never a cue under MIN_PART."""
+
+    def test_boundary_placed_by_reading_speed(self):
+        words = fast_clause("matches the paper's claim.")
+        texts = [c['text'] for c in captions.build(words, [4.85], 42)]
+        self.assertEqual(texts, ['Every source is on the page today,', 'and that the statement matches',
+                                 "the paper's claim.", 'Next scene starts here.'])
+        plain = captions.build(words, [4.85], 42, target_cps=0)  # 0: the usual character-balanced split only
+        self.assertEqual([c['text'] for c in plain][1:3], ['and that the statement', "matches the paper's claim."])
+
+    def test_no_change_when_relief_reaches_the_target(self):
+        for s, tr, tl in (example(), worked_example('parakeet'), worked_example('whisper')):
+            words, _ = align.align(s, tr, tl)
+            self.assertEqual([c['text'] for c in captions.build(words, tl['cuts'], 42, s['display'])],
+                             [c['text'] for c in captions.build(words, tl['cuts'], 42, s['display'], target_cps=0)])
+
+    def test_fast_split_parts(self):
+        c = even('one two three four five six seven eight nine ten', 0.0, 1.6)  # 48 chars in 1.6 s
+        parts = captions.fast_split(c, [c[:5], c[5:]], 42, 19, -0.3, 1.7)
+        self.assertTrue(2 <= len(parts) <= captions.MAX_SPLIT, parts)
+        self.assertEqual([x for p in parts for x in p], c)
+        for p, d in zip(parts, captions.predicted(parts)):
+            self.assertLessEqual(len(captions.text(p)), 42)
+            self.assertGreaterEqual(d, captions.MIN_PART)
+        slow = even('one two three four five', 0.0, 3.0)
+        self.assertIs(captions.fast_split(slow, [slow], 42, 19, -0.3, 3.2)[0], slow)  # relief reaches 19: unchanged
+
+
+class ShortCueMergeTests(unittest.TestCase):
+    def test_a_cue_under_half_a_second_merges(self):
+        words = [w('Quick.', 0.0, 0.2)] + even('Then more follows.', 0.3, 1.0)
+        cues = captions.build(words, [], 42)
+        self.assertEqual([c['text'] for c in cues], ['Quick. Then more follows.'])
+        self.assertGreaterEqual(cues[0]['end'] - cues[0]['start'], captions.MIN_CUE)
+
+    def test_never_across_a_cut(self):
+        words = [w('Quick.', 0.0, 0.2)] + even('Then more follows.', 0.3, 1.0)
+        cues = captions.build(words, [0.28], 42)
+        self.assertEqual([c['text'] for c in cues], ['Quick.', 'Then more follows.'])
+        self.assertLessEqual(cues[0]['end'], 0.28)
+
+
+class JitterRegressionTests(unittest.TestCase):
+    """The round-3 verifier's jitter model (each ASR word's start + N(0, sigma), its length + N(0, sigma / 2)), seeded:
+    the caption gate holds on the worked example's Whisper transcript at sigma 0.05 and 0.1 s and on its Parakeet
+    transcript at 0.2 s, and on episode 1's Parakeet transcript at 0.2 s (it failed 15 %, 26.5 %, 6.5 % and 20.5 % of
+    200 trials before chain relief, the last-resort lead, the reading-speed split and the collapse spread)."""
+
+    def run_trials(self, data, sigma, n):
+        s, tr, tl = data
+        rnd, fails = random.Random(42), []
+        for trial in range(n):
+            noisy = [dict(a) for a in tr]
+            for a in noisy:
+                d = a['end'] - a['start']
+                a['start'] += rnd.gauss(0, sigma)
+                a['end'] = a['start'] + max(0.0, d + rnd.gauss(0, sigma / 2))
+            words, _ = align.align(s, noisy, tl)
+            cues = captions.build(words, tl['cuts'], CFG['max_chars'], s['display'], CFG['max_cps'])
+            for c in cues:
+                self.assertGreaterEqual(c['end'] - c['start'], captions.MIN_PART - 1e-9, (trial, c))
+            for a, b in zip(cues, cues[1:]):
+                self.assertLessEqual(a['end'], b['start'] + 1e-9, (trial, a, b))
+            if gate_fails(cues):
+                fails.append((trial, gate_fails(cues)))
+        return fails
+
+    def test_whisper_up_to_a_tenth_of_a_second(self):
+        for sigma in (0.05, 0.1):
+            self.assertEqual(self.run_trials(worked_example('whisper'), sigma, 100), [], sigma)
+
+    def test_parakeet_at_two_tenths(self):
+        self.assertEqual(self.run_trials(worked_example('parakeet'), 0.2, 100), [])
+        self.assertLessEqual(len(self.run_trials(example(), 0.2, 60)), 1)
 
 
 class DisplayMapTests(unittest.TestCase):
