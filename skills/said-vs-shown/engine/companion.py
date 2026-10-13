@@ -231,12 +231,15 @@ CLOSE_CREDIT_CHARS = 64  # and each in at most this many characters, so the wors
 REVIEW_CLAIM = re.compile(r"(?<![^\W\d_])(?:re-?view|peer[- ]?review|fact[- ]?check|approv|verif|vett|validat|"
                           r"audit|proof-?read|sign(?:ed)?[- ]?off|(?:double[- ]|cross[- ])?checked|confirm|endors)",
                           re.I)
-BOOL_WORDS = {'true': True, 'yes': True, 'on': True, '1': True, 'false': False, 'no': False, 'off': False, '0': False}
+BOOL_WORDS = {'true': True, 'yes': True, 'on': True, '1': True, 'false': False, 'no': False, 'off': False, '0': False,
+              'none': False, 'null': False, '': False}
 
 
 def latin_letter(ch):
-    """A letter of the Latin script (any case, with or without diacritics), never one that reads as a separator."""
-    return ch.isalpha() and ch not in SEPARATOR_LIKE and unicodedata.name(ch, '').startswith('LATIN ')
+    """A cased letter of the Latin script (upper/lower/title case, with or without diacritics). Caseless "letters"
+    (category Lo/Lm, e.g. ꟷ ʔ) are refused: several of them read as separators."""
+    return (unicodedata.category(ch) in ('Lu', 'Ll', 'Lt') and ch not in SEPARATOR_LIKE
+            and unicodedata.name(ch, '').startswith('LATIN '))
 
 
 def name_word(w):
@@ -301,6 +304,8 @@ def _credit_field(E):
     if isinstance(raw, str) and raw.strip().lower() in BOOL_WORDS:
         on = BOOL_WORDS[raw.strip().lower()]
         return on, [], f'episode.json "credit" {raw!r} read as {str(on).lower()}: write true or false, without quotes'
+    if isinstance(raw, (list, dict)) and not raw:
+        return False, [], f'episode.json "credit" {raw!r} read as false: write true or false'
     items = [raw] if isinstance(raw, str) else list(raw) if isinstance(raw, list) else [raw]
     return True, items, (f'episode.json "credit" HOLDS {raw!r}, BUT "credit" IS ONLY THE true/false SWITCH for the '
                          f'"Made with {TOOL_NAME}" footer. Read as "credits" (rename the field to "credits"); the '
