@@ -4,6 +4,7 @@
   browser frame, the camera pushing in on the quoted sentence (coordinate-target-zoom), and an accent
   highlighter sweeping each line of the quote as it is spoken. After the quote the camera either pulls
   back to the left to make room for the ILLUSTRATION slot, pulls back to the whole page, or holds.
+  A pull-back dims the page while it moves (#__P__dim, CFG.after.dim) to stay under the flash limit.
 
   Receipt scenes are authored per story (engine/fill_scenes.py does NOT fill them):
     1. copy this file to video/compositions/NN-<scene>.html
@@ -87,6 +88,9 @@
           position: absolute; background: rgba(242, 193, 78, 0.42); border-radius: 3px;
           transform-origin: left center; mix-blend-mode: multiply;
         }
+        /* page dimmer: a veil in the table color over the capture. It fades in while the camera pulls back and out
+           once the camera lands, so a full-frame white page never leaves the frame in a few frames (WCAG 2.3.1) */
+        [data-composition-id="__SCENE_ID__"] #__P__dim { position: absolute; inset: 0; background: #14130f; opacity: 0; pointer-events: none; }
 
         /* ═══ ILLUSTRATION SLOT (styles) — replace with this story's bespoke visual ═══
            Box: right of the pulled-back exhibit, x 1010–1800, y 196–836 (never into the caption band y ≥ 920).
@@ -118,6 +122,7 @@
               <div id="__P__chrome"><span class="rc-dot"></span><span class="rc-dot"></span><span class="rc-dot"></span><span id="__P__url" data-layout-allow-overlap="true" data-layout-allow-occlusion="true"></span><!-- the URL fades out while the camera is pushed in --></div>
               <div id="__P__page">
                 <img id="__P__shot" alt=""><!-- src + alt come from CFG.receipt -->
+                <div id="__P__dim"></div><!-- pull-back dimmer (CFG.after.dim) -->
                 <!-- highlighter bars (.rc-hl) are created from CFG.receipt.lines -->
               </div>
             </div>
@@ -164,6 +169,8 @@
               { at: 6.4, dur: 0.3 }
             ],
             // after the quote. mode: "illustration" (pull back left, the slot builds right) | "pullback" (whole page) | "hold"
+            // dim (optional, default 0.5): how far the page darkens during a pull-back. It is back to 0 about 0.8 s after
+            // the camera lands. Keep it: without it a zoomed-in white page leaves the frame in 3 big luminance jumps.
             after: { mode: "illustration", at: 6.85, dur: 1.2 },
             // ILLUSTRATION SLOT default diagram (ignored unless after.mode is "illustration"):
             // 2–3 nodes; `at` = when the node lands; the arrow into a node draws 0.5 s before it; check_at = accent tick on the last node (null = none)
@@ -267,6 +274,16 @@
           const A = CFG.after;
           if (A.mode === "pullback" || A.mode === "illustration") {
             tl.fromTo("#" + P + "url", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power1.in", immediateRender: false }, A.at + A.dur * 0.5);
+            // flash-safe pull-back: the page darkens early in the move (power2.out over its first 60%), while it
+            // still fills the frame, so the drop in brightness is spread over the whole move instead of the few frames
+            // in which the page shrinks out of frame. It brightens again after the camera lands. Without it, a white
+            // page at full zoom measured 3 frame-to-frame luma jumps over 10% within 1 s: exactly the WCAG 2.3.1
+            // limit that engine/deliver.py checks.
+            const DIM = A.dim != null ? A.dim : 0.5;
+            if (DIM > 0) {
+              tl.fromTo("#" + P + "dim", { opacity: 0 }, { opacity: DIM, duration: A.dur * 0.6, ease: "power2.out", immediateRender: false }, A.at);
+              tl.fromTo("#" + P + "dim", { opacity: DIM }, { opacity: 0, duration: 0.8, ease: "sine.inOut", immediateRender: false }, A.at + A.dur);
+            }
           }
           if (A.mode === "pullback") {
             // back out to the whole page; the highlight stays on

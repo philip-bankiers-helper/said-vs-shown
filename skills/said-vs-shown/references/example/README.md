@@ -10,7 +10,7 @@ Every data file an episode needs before the voice, in the exact shapes the tools
 | `ledger/claims.json` | 3 | one story: verifier result (4 claims, 2 receipt candidates) + refuter result (1 claim not upheld, with its fix) |
 | `ledger/leads.json` | 3 | two lead cards (an *Older* lead and a *Company* lead) |
 | `edit/episode.json` | 4 | complete episode facts; no `reviewed_by` yet, so the disclosure reads "not yet human-reviewed" |
-| `video/audio/script.json` | 5 | one line per scene, claim ids per line, spoken numbers → digits via `display`, the close's 7 s hold (`gap_after: 7.0`) |
+| `video/audio/script.json` | 5 | one line per scene, claim ids per line, spoken numbers → digits via `display`, the close's 7 s hold (`gap_after: 7.0`), and a per-line `speed` where a line needs one to land inside the voice gates (145–185 wpm, captions ≤ 21 chars/s) |
 | `video/scenes.json` | 5 (sfx after 7) | the scene ids in script order, with two sound marks |
 | `video/specs/03-math-boundary.json` | 8 | a boundary spec for `engine/boundary.py` |
 

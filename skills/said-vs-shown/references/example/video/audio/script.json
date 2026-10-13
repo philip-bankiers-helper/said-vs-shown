@@ -11,6 +11,7 @@
    "id": "L1-squeeze",
    "scene": "squeeze",
    "gap_after": 0.7,
+   "speed": 0.95,
    "text": "Three AI developments, October fifth to eighth. One of them passed a test you can check. Here's what it proves, and where the evidence stops.",
    "claims": [
     "brief:leads",
@@ -37,12 +38,13 @@
     "brief:story1-meaning",
     "story1:c04"
    ],
-   "speed": 1.0
+   "speed": 1.16
   },
   {
    "id": "L4-payoff",
    "scene": "payoff",
    "gap_after": 0.8,
+   "speed": 0.92,
    "text": "One result, one kind of test. A math claim can be checked by a formal proof. Passing it doesn't settle whether the result matters.",
    "claims": [
     "editorial"
@@ -62,7 +64,7 @@
    "id": "L6-close",
    "scene": "close",
    "gap_after": 7.0,
-   "speed": 1.0,
+   "speed": 0.97,
    "text": "That's the episode. Every source, and the two other leads, are on the companion page.",
    "claims": []
   }

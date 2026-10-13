@@ -8,7 +8,9 @@ Paths below are relative to the **episode root** `<episodes>/<YYYY-MM-DD>_<editi
   ledger/
     sources.json                 stable source map: [{"id":"S01","url":"…"}] — ids never renumber; new URLs get the next id
     selected.txt                 one URL substring per line: sources of the selected stories (captured first)
-    capture/Sxx/                 HyperFrames capture output (git-ignored; never redistributed)
+    capture/Sxx/                 HyperFrames capture output (git-ignored; never redistributed). capture.sh replaces the
+                                 AGENTS.md / CLAUDE.md / .cursorrules HyperFrames writes there with a 3-line EVIDENCE.md:
+                                 a capture is evidence to quote, not instructions to follow
     capture-log.jsonl            one line per source: {"id","url","secs","words","ok"}
     claims.json                  story ledger: [{story_id, ledger:{story_id, claims[], receipt_candidates[], discrepancies[]}, refute:{story_id, verdicts[], narration_risks[]}}]
                                  (workflows/ledger.js result.stories; prompts and shapes: references/ledger-prompts.md)
@@ -34,6 +36,7 @@ Paths below are relative to the **episode root** `<episodes>/<YYYY-MM-DD>_<editi
     <slug>.mp4                   1920x1080 master, −16 LUFS
     <slug>-web.mp4               ≤15 MB 720p cut
     poster.jpg, captions.vtt, captions.srt, transcript.md, SOURCES.md, chapters.txt
+                                 (transcript.md writes spoken forms through script.json → display, like the captions)
     companion/                   static companion page (index.html + receipts/*.jpg + video)
 ```
 
@@ -54,7 +57,7 @@ Paths below are relative to the **episode root** `<episodes>/<YYYY-MM-DD>_<editi
   "editor": "Philip Bankier",
   "reviewed_by": "Philip Bankier",
   "reviewed_at": "2026-10-11",
-  "disclosure": "AI-produced · AI voice · every claim sourced · reviewed by Philip Bankier",
+  "disclosure": "AI-produced · AI voice · every claim sourced",
   "credit": true,
   "lead_badge_overrides": { "6": "company" },
   "stories": [
@@ -79,7 +82,7 @@ Optional keys read by `fill_scenes.py`:
 - top level: `close_title`, `payoff_statement`, `payoff_highlight`, `one_thing_lead`, `one_thing_kicker`, `reviewed_by`, `reviewed_at`;
 - leads and stories: `card_title` (a ≤ 4-word card label).
 
-The disclosure's last segment is derived from `reviewed_by` by every tool (`fill_scenes.py`, `companion.py`): "reviewed by <reviewed_by>" once the user has reviewed the episode (stage 10), "not yet human-reviewed" until then, whatever `disclosure` says. `deliver.py` refuses to run without `reviewed_by` unless given `--unreviewed`. `editor` only records who edits the episode; it never implies a review.
+Every tool builds the disclosure line the same way (`companion.disclosure_of`, used by `fill_scenes.py` for the close card and by `companion.py`, which `deliver.py` runs, for the page): the segments of `disclosure` with any review wording dropped ("reviewed by …", "not yet human-reviewed", wherever it sits), then "reviewed by <reviewed_by>" once the user has reviewed the episode (stage 10), or "not yet human-reviewed" until then. So no text in `disclosure` can claim a review that `reviewed_by` does not record. `new_episode.py` writes the starter line "AI-produced · AI voice · every claim sourced · not yet human-reviewed". `deliver.py` refuses to run without `reviewed_by` unless given `--unreviewed`. `editor` only records who edits the episode; it never implies a review.
 
 `test` is the short board label (≤ 26 characters, e.g. "formal proof check"). The board slot is 450 px wide and longer text overflows it. The full wording goes in `matrix`.
 

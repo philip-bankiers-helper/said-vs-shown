@@ -55,7 +55,7 @@ Glyph CSS: 13–15px square, 2px `--paper` border; CHECKED filled `--paper`; COM
 ## Motifs
 
 - **Evidence boundary:** a dashed accent line (stroke 3px, dash 14/10). Draws with svg-path-draw. Separates PROVES | DOESN'T PROVE; underlines what the story covers.
-- **Receipts:** real 2x captures inside a generic browser frame (no site chrome cloned), radius 14, 2px `--line` border, soft shadow. The camera pushes in with coordinate-target-zoom; the highlighter sweeps left→right synced to the spoken words.
+- **Receipts:** real 2x captures inside a generic browser frame (no site chrome cloned), radius 14, 2px `--line` border, soft shadow. The camera pushes in with coordinate-target-zoom; the highlighter sweeps left→right synced to the spoken words. A pull-back dims the page while it moves and brings it back once the camera lands, so a white page never leaves the frame as a flash.
 - **Source chip:** mono 20px, `--muted`, "SOURCE  domain/path · captured date".
 - **Kicker / meta plate:** top-left, mono 22px on `rgba(20,19,15,0.94)`, radius 8: story number in accent, topic in paper, then badge · date · who. Outside story scenes the plate reads `<show> · <edition> · <window>` with the show name in accent.
 
@@ -70,7 +70,7 @@ Glyph CSS: 13–15px square, 2px `--paper` border; CHECKED filled `--paper`; COM
   4. the disclosure line (format below), wrapped, in `--ink`;
   5. footer, only when `credit` is true: `MADE WITH SAID VS. SHOWN`, centered, `--receipt-ink-2`.
   Left of the receipt: the sign-off (Newsreader 500, 64px), the companion-page call to action (mono 24px, accent) and the badge key. The card then holds still for reading (about 7 s of silence).
-- **Disclosure line format:** `AI-produced · AI voice · every claim sourced · reviewed by <Name>`. Segments are joined by ` · `. Keep `reviewed by <Name>` only when a named person actually reviewed the episode (`episode.json` → `reviewed_by`); until then the last segment reads `not yet human-reviewed`. Never shorten it to a logo or an icon. The same line goes on the companion page and in the video description.
+- **Disclosure line format:** `AI-produced · AI voice · every claim sourced · reviewed by <Name>`. Segments are joined by ` · `. The tools write the last segment from `episode.json` → `reviewed_by`: `reviewed by <Name>` only when a named person actually reviewed the episode, `not yet human-reviewed` until then; review wording typed into `disclosure` is dropped. Never shorten it to a logo or an icon. The same line goes on the companion page and in the video description.
 - **Credit:** `episode.json` → `credit: true` prints the `MADE WITH SAID VS. SHOWN` footer on the receipt. It is the only place the tool is credited inside the picture.
 
 ## Layout

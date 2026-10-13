@@ -61,7 +61,7 @@ npx skills add philipbankier/said-vs-shown -a codex -a cursor -a gemini-cli -a o
 npx skills add philipbankier/said-vs-shown -g -a codex -a cursor -a gemini-cli -a opencode -y   # every project: ~/.agents/skills/said-vs-shown
 ```
 
-Add `-a claude-code` to also link it for Claude Code (`.claude/skills/said-vs-shown`). Cursor and OpenCode also read `.claude/skills`, so if you use them, skip `-a claude-code` in the same project to avoid duplicate entries. `npx skills ls` shows where a skill landed.
+Add `-a claude-code` to also link it for Claude Code (`.claude/skills/said-vs-shown`). Cursor and OpenCode also read `.claude/skills`, so if you use them, skip `-a claude-code` in the same project to avoid duplicate entries. `npx skills ls` shows where a skill landed. A project install (no `-g`) also writes `skills-lock.json` at the project root (each skill's source and hash); commit it or ignore it, as you prefer.
 
 **Codex:** invoke it with `$said-vs-shown inbox/my-brief.md`, through `/skills`, or by asking. Codex's default workspace sandbox blocks what the pipeline needs (network, writes to `~/.said-vs-shown`, `~/.npm` and `~/.cache`, and launching headless Chrome): under it the health check fails on chrome and hyperframes, and passes in full access. Either approve the escalations when Codex asks, or start Codex in the project with `codex --sandbox danger-full-access --ask-for-approval on-request`. Run the one-time setup in your own terminal before the first session.
 
@@ -69,7 +69,7 @@ Add `-a claude-code` to also link it for Claude Code (`.claude/skills/said-vs-sh
 
 ### Setup and health check
 
-The easiest way is to ask your agent to "set up Said vs. Shown": stage 0 of the skill runs the health check and setup itself. By hand, find the skill folder for your install:
+The easiest way is to ask your agent to "set up Said vs. Shown": stage 0 of the skill runs the health check, and if something is missing it tells you what setup will change (downloads, plus the global HyperFrames skills below) and runs setup only after you say yes. By hand, find the skill folder for your install:
 
 | Install | Skill folder (`<skill>`) |
 |---|---|
@@ -79,11 +79,12 @@ The easiest way is to ask your agent to "set up Said vs. Shown": stage 0 of the 
 | git clone | `/path/to/said-vs-shown/skills/said-vs-shown` |
 
 ```
-sh <skill>/engine/setup.sh
-node <skill>/engine/doctor.mjs
+node <skill>/engine/doctor.mjs         # health check: exits 0 when everything is ready
+sh <skill>/engine/setup.sh --dry-run   # what setup would download and change; changes nothing
+sh <skill>/engine/setup.sh             # then run doctor again
 ```
 
-`setup.sh --dry-run` prints every step and its disk use and changes nothing. Setup is idempotent; doctor prints a fix (with the full path) for anything that fails.
+Setup is idempotent; doctor prints a fix (with the full path) for anything that fails. Setup also installs the HyperFrames agent skills globally (see [What it runs, downloads and sends](#what-it-runs-downloads-and-sends)).
 
 **Requirements:** macOS or Linux (Windows via WSL); Node ≥ 22.12; ffmpeg; Python ≥ 3.9 and [uv](https://docs.astral.sh/uv/) (setup creates its own Python 3.12 venv for Kokoro); about 1.7 GB of model and browser downloads on a fresh machine; ≥ 5 GB free disk to render.
 
@@ -101,7 +102,8 @@ Everything above works from a local clone. Run episodes and demos from a separat
   claude plugin uninstall said-vs-shown@said-vs-shown && claude plugin install said-vs-shown@said-vs-shown
   ```
 - **Other agents:** the same `npx skills add` commands with the path instead of the GitHub name, e.g. `npx skills add /path/to/said-vs-shown -a codex -y`.
-- **Releasing:** bump `version` in `.claude-plugin/plugin.json` (and `metadata.version` in `SKILL.md`) for every release, or installed plugins won't pick up the change.
+- **Demo clips before launch:** the demo's end card shows `npx skills add philipbankier/said-vs-shown`, which won't resolve until the repo is public. Pass your own line, e.g. `--install-line "coming soon"`. Episode companion pages link the repo too; `deliver.py --repo-url <url>` changes that link.
+- **Releasing:** bump `version` in `.claude-plugin/plugin.json` (and `metadata.version` in `SKILL.md`) for every release, or installed plugins won't pick up the change. The HyperFrames version lives in `skills/said-vs-shown/engine/config.json` → `hyperframes`; when you bump it, update the pins in `templates/project/package.json` and `templates/project/AGENTS.md` too (`tests/test_templates.py` fails until they match).
 
 ## Quickstart
 
@@ -117,7 +119,7 @@ Everything above works from a local clone. Run episodes and demos from a separat
 
 ```
 brief ─▶ capture every source ─▶ ledger: verify ▸ refute ▸ fix wording ─▶ script (each line → claim ids)
-      ─▶ receipts (2x captures, quote located) ─▶ voice (Kokoro, local) + word timings (Parakeet/whisper, local)
+      ─▶ receipts (2x captures, quote located) ─▶ voice (Kokoro, local) + word timings (Whisper, or Parakeet if installed; local)
       ─▶ scenes (HyperFrames: squeeze · receipt · boundary · board · payoff · close) ─▶ lint/check ─▶ render ─▶ deliver
 ```
 
@@ -138,7 +140,7 @@ Every on-screen claim is traced to the ledger by the agent at the script stage (
   - the HyperFrames CLI via `npx` (~120 MB), plus HyperFrames' own Chrome (~390 MB) on the first capture or render
   - a headless Chrome (~200 MB), only if none is found
   - Whisper small.en (~470 MB) on the first transcription, or optionally Parakeet ASR (~640 MB) instead
-- **Installs agent skills globally:** setup runs `npx hyperframes@<version> skills update`, which installs or overwrites the HyperFrames skills (latest from GitHub) in `~/.claude/skills` and `~/.agents/skills` and links them into the skill folders of other agents it finds (Cursor, Gemini CLI, OpenCode, Windsurf). Everything else goes under `~/.said-vs-shown`.
+- **Installs agent skills globally:** setup runs `npx hyperframes@<version> skills update`, which installs or overwrites the HyperFrames skills (latest from GitHub) in `~/.claude/skills` and `~/.agents/skills` and links them into the skill folders of other agents it finds (Cursor, Gemini CLI, OpenCode, Windsurf). Everything else goes under `~/.said-vs-shown`. When your agent runs the skill, it asks you before it runs setup.
 - **Runs locally:** text-to-speech, speech recognition, rendering. It needs **no API keys and no paid services**. `hyperframes snapshot` would send frames to Gemini when `GEMINI_API_KEY` is set; the skill always passes `--describe false`.
 - **Sends:** nothing of its own. Your agent (e.g. Claude Code) uses your own account as usual. Compositions load GSAP from cdn.jsdelivr.net when previewed or rendered (put `gsap.min.js` in `video/assets/vendor/` to render offline). The HyperFrames CLI collects anonymous usage telemetry by default; turn it off with `npx -y hyperframes@0.8.147 telemetry disable` or `HYPERFRAMES_NO_TELEMETRY=1`.
 - **Never redistributes captures.** Source screenshots are made at build time on your machine and are git-ignored.

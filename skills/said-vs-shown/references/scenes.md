@@ -71,6 +71,8 @@ It reads `edit/episode.json`, `ledger/leads.json`, `ledger/sources.json`, `audio
 | One-thing | `templates/scenes/one-thing.html` | `meta`, `kicker`, `quiet[{text,at}]`, `line1`, `mark`, `tail`, `beats{kicker,nudge,line1,line2,highlight,highlight_dur}` | `one_thing` ("lead: question"), `one_thing_highlight`, `one_thing_lead`, `one_thing_kicker` | waterfall quiet fragments as said, nudge-curve up, two display lines, marker highlight |
 | Close | `templates/scenes/close.html` | `meta`, `eyebrow`, `title`, `cta{a,b}`, `key_label`, `receipt{wordmark,edition_line,number,stories[{num,topic,badge,sources[]}],counts[[label,value]],disclosure,credit}`, `beats{title,receipt,cta_a,cta_b,key}` | `title`, `close_title`, `stories[].sources[].url`, `captured`, counts computed from `leads.json`/`stories`/`sources.json`/receipts, `disclosure` + `reviewed_by`, `credit` | the printed receipt clips in top→bottom at a constant feed, lines cascade, then ~7 s still |
 
+One-thing: `one_thing_highlight` is the marked phrase on line 2. If it opens the question (or is the whole question), `fill_scenes.py` moves its first words to line 1 and keeps the rest marked (a one-word highlight stays whole on a single line) and prints a note; pick a highlight later in the question to keep both lines. Close: the disclosure's review segment always comes from `reviewed_by` (`references/project-layout.md`).
+
 Leads with status `contradicted` or `unverifiable` get no squeeze card (there is no video badge for them); the companion page lists them as Contradicted / Unverified.
 
 ## Receipt (one per story, written by you)
@@ -79,12 +81,12 @@ Leads with status `contradicted` or `unverifiable` get no squeeze card (there is
 2. Follow the steps in its header comment: replace `__SCENE_ID__` and `__P__` (a short prefix with its dash, e.g. `mr-`), and fill `CFG`:
    - `kicker{num,topic,badge,meta,wordmark,sep}` and `source{label,captured}`, `url`: from `edit/episode.json` → the story;
    - `receipt{img,alt,viewport,lines}`: from `<video>/assets/receipts/Rnn-<slug>.json` (`viewport`, `lines` in CSS px);
-   - `beats{kicker,source,frame}`, `camera{at,dur,zoom}` (zoom 0 = auto), `highlight[{at,dur,ease?}]` (one entry per quote line: when its first word is said and how long its words take), `after{mode,at,dur}` (`illustration` | `pullback` | `hold`): from this scene's words;
+   - `beats{kicker,source,frame}`, `camera{at,dur,zoom}` (zoom 0 = auto), `highlight[{at,dur,ease?}]` (one entry per quote line: when its first word is said and how long its words take), `after{mode,at,dur,dim?}` (`illustration` | `pullback` | `hold`; `dim` defaults to 0.5, see Motion): from this scene's words;
    - `illustration{tag,tag_at,nodes[{t,s,at,accent?,arrow_at?}],check_at}`: the default diagram's data.
 3. Replace the default diagram in the ILLUSTRATION SLOT (markup and motion) with a visual made for this story. Vary it per story; templated sameness reads as mass-produced. Keep the visible ILLUSTRATION tag, and never present it as a product's real output.
 4. Run `npx -y hyperframes@<ver> lint <video>` and fix your findings.
 
-Motion: arrivals are `tl.set` + `tl.to` (waterfall-entry, power4.out); the camera is coordinate-target-zoom (`zoom-outer` scales, `zoom-inner` translates, power3.inOut, 1.2–1.6 s); the highlighter sweeps left→right synced to the spoken words; the browser bar's URL fades while the camera is pushed in.
+Motion: arrivals are `tl.set` + `tl.to` (waterfall-entry, power4.out); the camera is coordinate-target-zoom (`zoom-outer` scales, `zoom-inner` translates, power3.inOut, 1.2–1.6 s); the highlighter sweeps left→right synced to the spoken words; the browser bar's URL fades while the camera is pushed in. During a pull-back the page dims (`#__P__dim`, power2.out to `after.dim` over the first 60% of the move, back to 0 in 0.8 s after the camera lands). Keep it, and keep something like it in a camera move of your own: a white page that fills the frame and leaves it undimmed in about a second measured 3 frame-to-frame luma jumps over 10%, the WCAG 2.3.1 flash limit `deliver.py` checks; with the dimmer the largest jump halves.
 
 To build several receipts at once, give each one the brief below: in Claude Code with the Workflow tool, `workflows/scenes.js`; in an agent with subagents, one subagent per receipt; otherwise build them one after another yourself.
 
