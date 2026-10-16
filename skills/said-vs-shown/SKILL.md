@@ -4,7 +4,7 @@ description: Turn a research brief (news items or claims with source links) into
 license: MIT. See LICENSE in this folder; third-party notices are in THIRD_PARTY.md in the repository
 metadata:
   version: "0.1.0"
-  repository: https://github.com/philipbankier/said-vs-shown
+  repository: https://github.com/philip-bankiers-helper/said-vs-shown
 ---
 
 # Said vs. Shown — brief → evidence-first episode

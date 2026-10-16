@@ -33,11 +33,11 @@ Pick one way per agent. In Claude Code, install either the plugin or the persona
 **Claude Code (plugin, from GitHub):**
 
 ```
-/plugin marketplace add philipbankier/said-vs-shown
+/plugin marketplace add philip-bankiers-helper/said-vs-shown
 /plugin install said-vs-shown@said-vs-shown
 ```
 
-On Claude Code v2.1.275 or later, one line does both: `/plugin install said-vs-shown --marketplace philipbankier/said-vs-shown`. From a shell, the same commands are `claude plugin marketplace add …` and `claude plugin install …`. Invoke it as `/said-vs-shown:said-vs-shown`, or just ask.
+On Claude Code v2.1.275 or later, one line does both: `/plugin install said-vs-shown --marketplace philip-bankiers-helper/said-vs-shown`. From a shell, the same commands are `claude plugin marketplace add …` and `claude plugin install …`. Invoke it as `/said-vs-shown:said-vs-shown`, or just ask.
 
 **Claude Code (plugin, from a local folder):** clone or download the repo to `/path/to/said-vs-shown`, then
 
@@ -57,8 +57,8 @@ Then `/said-vs-shown <brief>`, or just ask.
 **Other agents ([Agent Skills](https://agentskills.io) format: Codex, Cursor, Gemini CLI, OpenCode and more):** list the agents you use with `-a`. Without `-a`, the CLI may install for every agent it knows and add folders such as `./agent/` to your project.
 
 ```
-npx skills add philipbankier/said-vs-shown -a codex -a cursor -a gemini-cli -a opencode -y      # this project: .agents/skills/said-vs-shown
-npx skills add philipbankier/said-vs-shown -g -a codex -a cursor -a gemini-cli -a opencode -y   # every project: ~/.agents/skills/said-vs-shown
+npx skills add philip-bankiers-helper/said-vs-shown -a codex -a cursor -a gemini-cli -a opencode -y      # this project: .agents/skills/said-vs-shown
+npx skills add philip-bankiers-helper/said-vs-shown -g -a codex -a cursor -a gemini-cli -a opencode -y   # every project: ~/.agents/skills/said-vs-shown
 ```
 
 Add `-a claude-code` to also link it for Claude Code (`.claude/skills/said-vs-shown`). Cursor and OpenCode also read `.claude/skills`, so if you use them, skip `-a claude-code` in the same project to avoid duplicate entries. `npx skills ls` shows where a skill landed. A project install (no `-g`) also writes `skills-lock.json` at the project root (each skill's source and hash); commit it or ignore it, as you prefer.
@@ -88,7 +88,7 @@ Setup is idempotent; doctor prints a fix (with the full path) for anything that 
 
 **Requirements:** macOS or Linux (Windows via WSL); Node ≥ 22.12; ffmpeg; Python ≥ 3.9 and [uv](https://docs.astral.sh/uv/) (setup creates its own Python 3.12 venv for Kokoro); about 1.7 GB of model and browser downloads on a fresh machine; ≥ 5 GB free disk to render.
 
-## Try it locally before the repo is public
+## Try it from a local clone
 
 Everything above works from a local clone. Run episodes and demos from a separate, empty folder (for example `mkdir -p ~/svs-try && cd ~/svs-try`), never inside the repo: a local plugin install copies the whole folder, ignored files included.
 
@@ -102,7 +102,6 @@ Everything above works from a local clone. Run episodes and demos from a separat
   claude plugin uninstall said-vs-shown@said-vs-shown && claude plugin install said-vs-shown@said-vs-shown
   ```
 - **Other agents:** the same `npx skills add` commands with the path instead of the GitHub name, e.g. `npx skills add /path/to/said-vs-shown -a codex -y`.
-- **Demo clips before launch:** the demo's end card shows `npx skills add philipbankier/said-vs-shown`, which won't resolve until the repo is public. Pass your own line, e.g. `--install-line "coming soon"`. Episode companion pages link the repo too; `deliver.py --repo-url <url>` changes that link.
 - **Releasing:** bump `version` in `.claude-plugin/plugin.json` (and `metadata.version` in `SKILL.md`) for every release, or installed plugins won't pick up the change. The HyperFrames version lives in `skills/said-vs-shown/engine/config.json` → `hyperframes`; when you bump it, update the pins in `templates/project/package.json` and `templates/project/AGENTS.md` too (`tests/test_templates.py` fails until they match).
 
 ## Quickstart

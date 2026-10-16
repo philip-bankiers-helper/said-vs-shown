@@ -26,7 +26,7 @@ import unicodedata
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL_NAME = 'Said vs. Shown'
-DEFAULT_REPO = 'https://github.com/philipbankier/said-vs-shown'
+DEFAULT_REPO = 'https://github.com/philip-bankiers-helper/said-vs-shown'
 
 # badge vocabulary: episode/ledger status -> canonical key -> label (rule: references/editorial.md)
 BADGE_KEY = {'checked': 'checked', 'verified': 'checked', 'company': 'company', 'company_claim': 'company',

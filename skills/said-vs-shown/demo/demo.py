@@ -39,7 +39,7 @@ ENGINE = os.path.join(SKILL, 'engine')
 TEMPLATES = os.path.join(SKILL, 'templates')
 SCENE_ID, PREFIX = 'demo-receipt', 'dr-'
 LEAD, GAP_QUOTE, GAP_OUTRO, HOLD, END_CARD = 0.5, 0.5, 0.9, 0.7, 2.0
-FALLBACK_INSTALL = 'npx skills add philipbankier/said-vs-shown'  # works for Claude Code and the other Agent Skills agents
+FALLBACK_INSTALL = 'npx skills add philip-bankiers-helper/said-vs-shown'  # works for Claude Code and the other Agent Skills agents
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October',
           'November', 'December']
 
